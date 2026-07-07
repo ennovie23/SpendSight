@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
+const bcrypt = require('bcrypt');
 require('dotenv').config({ path: '../.env' });
 
 const app = express();
@@ -133,5 +134,121 @@ app.post('/api/auth/google', async (req, res) => {
   } catch (error) {
     console.error('Error during Google authentication endpoint execution:', error);
     res.status(500).json({ error: 'Internal server authentication error' });
+  }
+});
+
+// password
+app.post('/api/auth/password', async (req, res) => {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+        return res.status(400).json({ error: 'Email and password are required' });
+    }
+
+    try {
+        const userCheck = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+
+        if (userCheck.rows.length === 0) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        const user = userCheck.rows[0];
+
+        if (!user.password_hash) {
+            return res.status(403).json({ error: 'User has no password' });
+        }
+
+        const isPasswordValid = await bcrypt.compare(password, user.password_hash);
+
+        if (!isPasswordValid) {
+            return res.status(401).json({ error: 'Invalid password' });
+        }
+
+        res.status(200).json({
+            message: 'Password authentication successful',
+            user: {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                picture: user.picture,
+                hasPassword: true
+            }
+        });
+
+    } catch (error) {
+        console.error('Error during password authentication:', error);
+        res.status(500).json({ error: 'Internal server password authentication error' });
+    }
+});
+
+// Update / Create password endpoint
+app.post('/api/auth/password/update', async (req, res) => {
+  const { email, oldPassword, newPassword } = req.body;
+
+  if (!email || !newPassword) {
+    return res.status(400).json({ error: 'Email and new password are required' });
+  }
+
+  try {
+    // 1. Fetch user from DB
+    const userCheck = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    if (userCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    const user = userCheck.rows[0];
+
+    // 2. If user already has a password, verify current password
+    if (user.password_hash) {
+      if (!oldPassword) {
+        return res.status(400).json({ error: 'Old password is required to change password' });
+      }
+      const isPasswordValid = await bcrypt.compare(oldPassword, user.password_hash);
+      if (!isPasswordValid) {
+        return res.status(401).json({ error: 'Incorrect old password' });
+      }
+      if (oldPassword === newPassword) {
+        return res.status(400).json({ error: 'New password cannot be the same as the old password' });
+      }
+    }
+
+    // 3. Hash the new password
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+
+    // 4. Update password_hash in DB
+    await pool.query(
+      'UPDATE users SET password_hash = $1 WHERE email = $2',
+      [hashedPassword, email]
+    );
+
+    res.status(200).json({ message: 'Password updated successfully' });
+
+  } catch (error) {
+    console.error('Error during password update:', error);
+    res.status(500).json({ error: 'Internal server error during password update' });
+  }
+});
+
+// Fetch user status endpoint
+app.get('/api/auth/status', async (req, res) => {
+  const { email } = req.query;
+  if (!email) {
+    return res.status(400).json({ error: 'Email is required' });
+  }
+
+  try {
+    const userCheck = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    if (userCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    const user = userCheck.rows[0];
+    res.status(200).json({
+      hasPassword: user.password_hash ? true : false,
+      name: user.name,
+      picture: user.picture
+    });
+  } catch (error) {
+    console.error('Error fetching user status:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });

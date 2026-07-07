@@ -3,7 +3,7 @@ import DashboardView from "./DashboardView";
 import TransactionsView from "./TransactionsView";
 import PasswordView from "./PasswordView";
 
-function Dashboard({ email, onLogout }) {
+function Dashboard({ email, onLogout, hasPassword, onPasswordSet }) {
   const [activeTab, setActiveTab] = useState("dashboard");
 
   // Get initials for profile badge
@@ -235,7 +235,7 @@ function Dashboard({ email, onLogout }) {
         }}
       >
         { activeTab === "dashboard" ? <DashboardView email={email} /> :
-          activeTab === "password" ? <PasswordView email={email} /> :
+          activeTab === "password" ? <PasswordView email={email} onLogout={onLogout} hasPassword={hasPassword} onPasswordSet={onPasswordSet} /> :
           activeTab === "transactions" ? <TransactionsView email={email} /> 
           : null}
       </div>
