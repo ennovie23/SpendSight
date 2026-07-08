@@ -12,5 +12,6 @@ router.get('/trash', txController.getTrashedExpenses);
 router.post('/restore/:id', txController.restoreExpense);
 router.delete('/purge/:id', txController.purgeExpense);
 router.delete('/trash/clear', txController.clearTrash);
+router.get('/analytics', txController.getAnalytics);
 
 module.exports = router;

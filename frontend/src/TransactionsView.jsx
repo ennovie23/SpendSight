@@ -1,17 +1,26 @@
 import { useState, useEffect } from "react";
 
 function TransactionsView({ email, user_id }) {
+  const monthsShort = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  
+  const currentYear = new Date().getFullYear().toString(); // "2026"
+  const currentMonthIdx = new Date().getMonth(); // 6 (July)
+  const currentMonthName = monthsShort[currentMonthIdx]; // "Jul"
+
   const [transactions, setTransactions] = useState([]);
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("Food");
   const [date, setDate] = useState("2026-07-07");
   const [isBtnHovered, setIsBtnHovered] = useState(false);
-  const [selectedMonth, setSelectedMonth] = useState("All");
+  const [selectedMonth, setSelectedMonth] = useState(currentMonthName);
+  const [selectedYear, setSelectedYear] = useState("2026");
+  const [availableYears, setAvailableYears] = useState(["2026"]);
   const [sortDirection, setSortDirection] = useState("desc");
 
-  // Page limit size state
+  // Page limit size & pagination states
   const [pageSize, setPageSize] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Custom Category states
   const [categoriesList, setCategoriesList] = useState(["Food", "Transport", "Utilities", "Entertainment"]);
@@ -60,6 +69,18 @@ function TransactionsView({ email, user_id }) {
     setCategoriesList(combined);
   };
 
+  // Update dynamic years dropdown based on database records
+  const syncAvailableYears = (data) => {
+    const txYears = data.map((tx) => {
+      if (!tx.date) return null;
+      const d = new Date(tx.date);
+      return d.getFullYear().toString();
+    }).filter(Boolean);
+
+    const uniqueYears = Array.from(new Set(["2026", ...txYears])).sort((a, b) => b - a);
+    setAvailableYears(uniqueYears);
+  };
+
   // Load all active expenses
   const fetchExpenses = async () => {
     if (!user_id) return;
@@ -74,6 +95,7 @@ function TransactionsView({ email, user_id }) {
         }));
         setTransactions(formattedData);
         syncCategories(data);
+        syncAvailableYears(data);
       }
     } catch (err) {
       console.error("Failed to fetch expenses:", err);
@@ -93,6 +115,7 @@ function TransactionsView({ email, user_id }) {
           amount: parseFloat(tx.amount),
         }));
         setTransactions(formattedData);
+        syncAvailableYears(data);
       }
     } catch (err) {
       console.error("Failed to fetch trash:", err);
@@ -110,6 +133,23 @@ function TransactionsView({ email, user_id }) {
       fetchExpenses();
     }
   }, [user_id, viewTrash]);
+
+  // Reset page index back to 1 if filter settings change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedMonth, selectedYear, pageSize, viewTrash]);
+
+  // Determine which months to show in the dropdown based on selected year
+  const displayedMonths = selectedYear === currentYear
+    ? monthsShort.slice(0, currentMonthIdx + 1) // Only up to current month (Jan - Jul)
+    : monthsShort; // All 12 months for previous years
+
+  // Safely reset selected month if it's no longer present in the updated months list
+  useEffect(() => {
+    if (selectedMonth !== "All" && !displayedMonths.includes(selectedMonth)) {
+      setSelectedMonth("All");
+    }
+  }, [selectedYear, displayedMonths]);
 
   // Open modal trigger helper
   const confirmAction = (title, message, onConfirm) => {
@@ -190,6 +230,7 @@ function TransactionsView({ email, user_id }) {
           
           setEditingId(null);
           clearForm();
+          fetchExpenses();
         } else {
           alert("Failed to update expense in the database.");
         }
@@ -224,6 +265,7 @@ function TransactionsView({ email, user_id }) {
           }
 
           clearForm();
+          fetchExpenses();
         } else {
           alert("Failed to save expense in the database.");
         }
@@ -270,6 +312,7 @@ function TransactionsView({ email, user_id }) {
               setEditingId(null);
               clearForm();
             }
+            fetchExpenses();
           } else {
             alert("Failed to delete transaction.");
           }
@@ -292,6 +335,7 @@ function TransactionsView({ email, user_id }) {
           });
           if (response.ok) {
             setTransactions(transactions.filter((t) => t.id !== id));
+            fetchTrash();
           } else {
             alert("Failed to restore transaction.");
           }
@@ -363,7 +407,6 @@ function TransactionsView({ email, user_id }) {
       case "Entertainment":
         return { color: "#00E676", bg: "rgba(0, 230, 118, 0.1)", dot: "#00E676" };
       default:
-        // Generate a unique color based on the category name character hash
         let hash = 0;
         for (let i = 0; i < cat.length; i++) {
           hash = cat.charCodeAt(i) + ((hash << 5) - hash);
@@ -375,9 +418,10 @@ function TransactionsView({ email, user_id }) {
     }
   };
 
-  // Filter and sort transactions
+  // Filter and sort transactions by year and dynamic months
   const filteredAndSortedTransactions = transactions
     .filter((tx) => {
+      if (selectedYear && !tx.date.includes(selectedYear)) return false;
       if (selectedMonth === "All") return true;
       return tx.date.startsWith(selectedMonth);
     })
@@ -387,8 +431,11 @@ function TransactionsView({ email, user_id }) {
       return sortDirection === "asc" ? dateA - dateB : dateB - dateA;
     });
 
-  // Paginate transactions based on pageSize
-  const displayedTransactions = filteredAndSortedTransactions.slice(0, pageSize);
+  // Calculate pagination boundaries
+  const totalPages = Math.ceil(filteredAndSortedTransactions.length / pageSize) || 1;
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const displayedTransactions = filteredAndSortedTransactions.slice(startIndex, endIndex);
 
   return (
     <div style={{ color: "var(--text-primary)", fontFamily: "system-ui, -apple-system, sans-serif" }}>
@@ -701,6 +748,28 @@ function TransactionsView({ email, user_id }) {
                 <option value={50}>Show 50</option>
               </select>
 
+              {/* Year Selector dropdown */}
+              <select
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(e.target.value)}
+                style={{
+                  backgroundColor: "var(--bg-card-inner)",
+                  border: "1px solid var(--border-color)",
+                  borderRadius: "8px",
+                  padding: "6px 10px",
+                  color: "var(--text-secondary)",
+                  fontSize: "13px",
+                  outline: "none",
+                  cursor: "pointer",
+                }}
+              >
+                {availableYears.map((yr) => (
+                  <option key={yr} value={yr}>
+                    {yr}
+                  </option>
+                ))}
+              </select>
+
               {/* Month selector dropdown */}
               <select
                 value={selectedMonth}
@@ -717,12 +786,26 @@ function TransactionsView({ email, user_id }) {
                 }}
               >
                 <option value="All">All Months</option>
-                <option value="Jul">July</option>
-                <option value="Jun">June</option>
+                {displayedMonths.map((month) => (
+                  <option key={month} value={month}>
+                    {month === "Jan" && "January"}
+                    {month === "Feb" && "February"}
+                    {month === "Mar" && "March"}
+                    {month === "Apr" && "April"}
+                    {month === "May" && "May"}
+                    {month === "Jun" && "June"}
+                    {month === "Jul" && "July"}
+                    {month === "Aug" && "August"}
+                    {month === "Sep" && "September"}
+                    {month === "Oct" && "October"}
+                    {month === "Nov" && "November"}
+                    {month === "Dec" && "December"}
+                  </option>
+                ))}
               </select>
               
               <span style={{ color: "var(--text-secondary)", fontSize: "12px", whiteSpace: "nowrap" }}>
-                Showing {displayedTransactions.length} of {filteredAndSortedTransactions.length}
+                Showing {Math.min(startIndex + 1, filteredAndSortedTransactions.length)} - {Math.min(endIndex, filteredAndSortedTransactions.length)} of {filteredAndSortedTransactions.length}
               </span>
             </div>
           </div>
@@ -885,7 +968,7 @@ function TransactionsView({ email, user_id }) {
                                 onMouseEnter={(e) => e.currentTarget.style.color = "#FF5252"}
                                 onMouseLeave={(e) => e.currentTarget.style.color = "var(--text-secondary)"}
                               >
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                   <polyline points="3 6 5 6 21 6" />
                                   <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                                 </svg>
@@ -900,6 +983,59 @@ function TransactionsView({ email, user_id }) {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination Controls */}
+          {filteredAndSortedTransactions.length > pageSize && (
+            <div style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginTop: "20px",
+              paddingTop: "16px",
+              borderTop: "1px solid var(--border-color)",
+              flexShrink: 0
+            }}>
+              <button
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                style={{
+                  backgroundColor: "transparent",
+                  border: "1px solid var(--border-color)",
+                  color: currentPage === 1 ? "var(--text-secondary)" : "var(--text-primary)",
+                  opacity: currentPage === 1 ? 0.4 : 1,
+                  borderRadius: "8px",
+                  padding: "8px 16px",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  cursor: currentPage === 1 ? "not-allowed" : "pointer",
+                  transition: "all 0.2s ease",
+                }}
+              >
+                Previous
+              </button>
+              <span style={{ fontSize: "13px", color: "var(--text-secondary)", fontWeight: "600" }}>
+                Page {currentPage} of {totalPages}
+              </span>
+              <button
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                style={{
+                  backgroundColor: "transparent",
+                  border: "1px solid var(--border-color)",
+                  color: currentPage === totalPages ? "var(--text-secondary)" : "var(--text-primary)",
+                  opacity: currentPage === totalPages ? 0.4 : 1,
+                  borderRadius: "8px",
+                  padding: "8px 16px",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  cursor: currentPage === totalPages ? "not-allowed" : "pointer",
+                  transition: "all 0.2s ease",
+                }}
+              >
+                Next
+              </button>
+            </div>
+          )}
         </div>
 
       </div>

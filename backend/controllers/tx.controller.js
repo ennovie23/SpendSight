@@ -1,4 +1,6 @@
 const pool = require('../config/db');
+const { spawn } = require('child_process');
+const path = require('path');
 
 // Save a new expense to the database
 exports.addExpense = async (req, res) => {
@@ -121,5 +123,79 @@ exports.updateExpense = async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).send('Server error while updating expense.');
+  }
+};
+
+// Spawn Python3 process executing analytics.py passing user transaction rows
+exports.getAnalytics = async (req, res) => {
+  try {
+    const { user_id, month, year } = req.query;
+    if (!user_id) {
+      return res.status(400).json({ error: 'User ID is required' });
+    }
+
+    // Query active database transactions for this user
+    const queryText = 'SELECT * FROM expenses WHERE user_id = $1 AND deleted_at IS NULL ORDER BY date DESC;';
+    const dbResult = await pool.query(queryText, [user_id]);
+    const transactions = dbResult.rows;
+
+    // Filter transactions by year on the backend if a specific year was selected
+    let filteredTransactions = transactions;
+    if (year) {
+      filteredTransactions = filteredTransactions.filter(tx => {
+        if (!tx.date) return false;
+        const d = new Date(tx.date);
+        return d.getFullYear().toString() === year;
+      });
+    }
+
+    // Filter transactions by month on the backend if a specific month was selected (except 'All')
+    if (month && month !== 'All') {
+      const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      filteredTransactions = filteredTransactions.filter(tx => {
+        if (!tx.date) return false;
+        const d = new Date(tx.date);
+        return monthNames[d.getMonth()] === month;
+      });
+    }
+
+    // Path to the Python script
+    const scriptPath = path.join(__dirname, '../services/analytics.py');
+
+    // Spawn python3 process
+    const pyProcess = spawn('python3', [scriptPath]);
+
+    let stdoutData = '';
+    let stderrData = '';
+
+    pyProcess.stdout.on('data', (data) => {
+      stdoutData += data.toString();
+    });
+
+    pyProcess.stderr.on('data', (data) => {
+      stderrData += data.toString();
+    });
+
+    pyProcess.on('close', (code) => {
+      if (code !== 0) {
+        console.error(`Python script exited with code ${code}. Stderr: ${stderrData}`);
+        return res.status(500).json({ error: 'Error calculating analytics in Python.' });
+      }
+      try {
+        const result = JSON.parse(stdoutData.trim());
+        res.json(result);
+      } catch (err) {
+        console.error('Failed to parse Python stdout as JSON:', err, stdoutData);
+        res.status(500).json({ error: 'Failed to parse analytics results.' });
+      }
+    });
+
+    // Write transaction rows to Python standard input
+    pyProcess.stdin.write(JSON.stringify(filteredTransactions));
+    pyProcess.stdin.end();
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Server error while retrieving analytics.');
   }
 };
