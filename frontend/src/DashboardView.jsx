@@ -7,11 +7,18 @@ function DashboardView({ email, user_id }) {
   const currentMonthIdx = new Date().getMonth(); // 6 (July)
   const currentMonthName = monthsShort[currentMonthIdx]; // "Jul"
 
-  const [selectedMonth, setSelectedMonth] = useState(currentMonthName);
-  const [selectedYear, setSelectedYear] = useState("2026");
+  const [selectedMonth, setSelectedMonth] = useState("All");
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const [analyticsData, setAnalyticsData] = useState({ total_spend: 0 });
   const [loading, setLoading] = useState(false);
   const [availableYears, setAvailableYears] = useState(["2026"]);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   // Fetch actual calculated values from the Python analytics engine endpoint
   useEffect(() => {
@@ -263,7 +270,7 @@ function DashboardView({ email, user_id }) {
       </div>
 
       {/* Top Metric Cards Grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "24px", marginBottom: "32px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fit, minmax(220px, 1fr))", gap: "24px", marginBottom: "32px" }}>
         
         {/* Total Monthly Spend Card (Dynamic from Python analytics) */}
         <div style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "16px", padding: "28px 24px", position: "relative", textAlign: "left" }}>
@@ -365,7 +372,7 @@ function DashboardView({ email, user_id }) {
       </div>
 
       {/* Charts Section Row */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))", gap: "24px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fit, minmax(400px, 1fr))", gap: "24px" }}>
         
         {/* Spending Breakdown Card (Mocked) */}
         <div style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "16px", padding: "28px" }}>
@@ -445,9 +452,10 @@ function DashboardView({ email, user_id }) {
               <path d={trendLinePath} fill="none" stroke="#00d8f6" strokeWidth="3" />
 
               {/* Line nodes */}
-              {trendData.map((d, i) => (
-                <circle key={i} cx={d.x} cy={d.y} r="4" fill="var(--bg-card)" stroke="#00d8f6" strokeWidth="2.5" />
-              ))}
+              {trendData.map((d, i) => {
+                if (isDaily && d.spend === 0) return null;
+                return <circle key={i} cx={d.x} cy={d.y} r="4" fill="var(--bg-card)" stroke="#00d8f6" strokeWidth="2.5" />;
+              })}
             </svg>
 
             {/* Labels and values overlay */}
@@ -456,9 +464,11 @@ function DashboardView({ email, user_id }) {
               const showLabel = trendData.length <= 15 || i % Math.ceil(trendData.length / 8) === 0 || i === trendData.length - 1;
               return (
                 <div key={i} style={{ display: showLabel ? "block" : "none" }}>
-                  <div style={{ position: "absolute", left: `${(d.x / 300) * 100}%`, top: `${(d.y / 120) * 100}%`, transform: "translate(-50%, -150%)", color: "#00d8f6", fontSize: "12px", fontWeight: "bold" }}>
-                    {formatCurrencySimple(d.spend)}
-                  </div>
+                  {(!isDaily || d.spend > 0) && (
+                    <div style={{ position: "absolute", left: `${(d.x / 300) * 100}%`, top: `${(d.y / 120) * 100}%`, transform: "translate(-50%, -150%)", color: "#00d8f6", fontSize: "12px", fontWeight: "bold" }}>
+                      {formatCurrencySimple(d.spend)}
+                    </div>
+                  )}
                   <div style={{ position: "absolute", left: `${(d.x / 300) * 100}%`, bottom: "-15px", transform: "translateX(-50%)", color: "var(--text-secondary)", fontSize: "12px", fontWeight: "600" }}>
                     {d.label}
                   </div>

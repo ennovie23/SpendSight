@@ -11,6 +11,13 @@ function App() {
   );
   const [password, setPassword] = useState("");
   const [isHovered, setIsHovered] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
   const [isLoggedIn, setIsLoggedIn] = useState(
     () => localStorage.getItem("spendsight_isLoggedIn") === "true",
   );
@@ -178,17 +185,17 @@ function App() {
         fontFamily: "system-ui, -apple-system, sans-serif",
       }}
     >
-      {/* The Login Card Frame */}
+      {/* The Login Container */}
       <div
         style={{
-          backgroundColor: "#111625",
           width: "100%",
           maxWidth: "420px",
-          borderRadius: "16px",
-          padding: "40px",
+          padding: isMobile ? "20px" : "40px",
           textAlign: "center",
-          border: "1px solid #1b2135",
-          boxShadow: "0px 10px 30px rgba(0, 0, 0, 0.5)",
+          backgroundColor: isMobile ? "transparent" : "#111625",
+          borderRadius: isMobile ? "0" : "16px",
+          border: isMobile ? "none" : "1px solid #1b2135",
+          boxShadow: isMobile ? "none" : "0px 10px 30px rgba(0, 0, 0, 0.5)",
         }}
       >
         {/* Wallet Icon Header */}

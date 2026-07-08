@@ -1,3 +1,7 @@
+* {
+  box-sizing: border-box;
+}
+
 :root {
   /* Dark mode variables (default) */
   --bg-app: #080B11;
