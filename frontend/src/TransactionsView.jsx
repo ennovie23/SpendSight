@@ -1321,7 +1321,7 @@ function TransactionsView({ email, user_id }) {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          zIndex: 1000,
+          zIndex: 2000,
           backdropFilter: "blur(1.5px)",
         }}>
           <div style={{
@@ -1474,17 +1474,17 @@ function TransactionsView({ email, user_id }) {
             
             <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
               <span style={{ fontSize: "12px", color: "var(--text-secondary)" }}>Description / Category</span>
-              <div style={{ display: "flex", gap: "12px" }}>
+              <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: "12px" }}>
                 <input
                   type="text"
                   value={scanResult.description}
                   onChange={(e) => setScanResult({...scanResult, description: e.target.value})}
-                  style={{ flex: 1, backgroundColor: "var(--bg-app)", border: "1px solid var(--border-color)", color: "var(--text-primary)", padding: "10px 12px", borderRadius: "8px", fontSize: "14px", outline: "none" }}
+                  style={{ flex: 1, backgroundColor: "var(--bg-app)", border: "1px solid var(--border-color)", color: "var(--text-primary)", padding: "10px 12px", borderRadius: "8px", fontSize: "14px", outline: "none", width: "100%" }}
                 />
                 <select
                   value={scanResult.category}
                   onChange={(e) => setScanResult({...scanResult, category: e.target.value})}
-                  style={{ width: "120px", backgroundColor: "var(--bg-app)", border: "1px solid var(--border-color)", color: "var(--text-primary)", padding: "10px 12px", borderRadius: "8px", fontSize: "14px", outline: "none" }}
+                  style={{ width: isMobile ? "100%" : "120px", backgroundColor: "var(--bg-app)", border: "1px solid var(--border-color)", color: "var(--text-primary)", padding: "10px 12px", borderRadius: "8px", fontSize: "14px", outline: "none" }}
                 >
                   {categoriesList.map((cat, i) => <option key={i} value={cat}>{cat}</option>)}
                 </select>
