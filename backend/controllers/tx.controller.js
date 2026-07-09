@@ -75,7 +75,7 @@ exports.getExpenses = async (req, res) => {
   try {
     const { user_id } = req.query;
     const result = await pool.query(
-      'SELECT * FROM expenses WHERE user_id = $1 AND deleted_at IS NULL ORDER BY date DESC;',
+      'SELECT * FROM expenses WHERE user_id = $1 AND deleted_at IS NULL ORDER BY date DESC, id DESC;',
       [user_id]
     );
     res.json(result.rows);
@@ -102,7 +102,7 @@ exports.getTrashedExpenses = async (req, res) => {
   try {
     const { user_id } = req.query;
     const result = await pool.query(
-      'SELECT * FROM expenses WHERE user_id = $1 AND deleted_at IS NOT NULL ORDER BY deleted_at DESC;',
+      'SELECT * FROM expenses WHERE user_id = $1 AND deleted_at IS NOT NULL ORDER BY deleted_at DESC, id DESC;',
       [user_id]
     );
     res.json(result.rows);
@@ -196,9 +196,8 @@ exports.getAnalytics = async (req, res) => {
     }
 
     // Query active database transactions for this user
-    const queryText = 'SELECT * FROM expenses WHERE user_id = $1 AND deleted_at IS NULL ORDER BY date DESC;';
-    const dbResult = await pool.query(queryText, [user_id]);
-    const transactions = dbResult.rows;
+    const queryText = 'SELECT * FROM expenses WHERE user_id = $1 AND deleted_at IS NULL ORDER BY date DESC, id DESC;';
+    const { rows: transactions } = await pool.query(queryText, [user_id]);
 
     // Filter transactions by year on the backend if a specific year was selected
     let filteredTransactions = transactions;
