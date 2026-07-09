@@ -1663,7 +1663,7 @@ function TransactionsView({ email, user_id }) {
           </div>
           <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", maxWidth: "900px", width: "90%", maxHeight: "90vh", backgroundColor: "var(--bg-card)", borderRadius: "16px", overflow: "hidden" }}>
             <div style={{ flex: 1, backgroundColor: "#000", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-              <img src={`${import.meta.env.VITE_API_URL}${receiptPreview.receipt_url}`} alt="Receipt" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
+              <img src={receiptPreview.receipt_url.startsWith('http') ? receiptPreview.receipt_url : `${import.meta.env.VITE_API_URL}${receiptPreview.receipt_url}`} alt="Receipt" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
             </div>
             <div style={{ width: isMobile ? "100%" : "350px", padding: "32px", display: "flex", flexDirection: "column", gap: "24px", overflowY: "auto" }}>
               <h3 style={{ margin: 0, color: "var(--text-primary)", fontSize: "20px" }}>Transaction Details</h3>

@@ -49,7 +49,7 @@ function PhotosView({ user_id }) {
   };
 
   const handleShare = async (photo) => {
-    const imageUrl = `${import.meta.env.VITE_API_URL}${photo.receipt_url}`;
+    const imageUrl = photo.receipt_url.startsWith('http') ? photo.receipt_url : `${import.meta.env.VITE_API_URL}${photo.receipt_url}`;
     const shareData = {
       title: 'SpendSight Receipt',
       text: `Receipt for ${photo.merchant || photo.category} (₱${parseFloat(photo.amount).toFixed(2)})`,
@@ -135,7 +135,7 @@ function PhotosView({ user_id }) {
             >
               <div style={{ width: "100%", height: "200px", backgroundColor: "#000" }}>
                 <img 
-                  src={`${import.meta.env.VITE_API_URL}${photo.receipt_url}`} 
+                  src={photo.receipt_url.startsWith('http') ? photo.receipt_url : `${import.meta.env.VITE_API_URL}${photo.receipt_url}`} 
                   alt="Receipt" 
                   style={{ width: "100%", height: "100%", objectFit: "cover", opacity: 0.85 }} 
                 />
@@ -209,7 +209,7 @@ function PhotosView({ user_id }) {
           </div>
           <div style={{ display: "flex", flexDirection: window.innerWidth <= 768 ? "column" : "row", maxWidth: "900px", width: "90%", maxHeight: "90vh", backgroundColor: "var(--bg-card)", borderRadius: "16px", overflow: "hidden" }}>
             <div style={{ flex: 1, backgroundColor: "#000", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-              <img src={`${import.meta.env.VITE_API_URL}${selectedPhoto.receipt_url}`} alt="Receipt" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
+              <img src={selectedPhoto.receipt_url.startsWith('http') ? selectedPhoto.receipt_url : `${import.meta.env.VITE_API_URL}${selectedPhoto.receipt_url}`} alt="Receipt" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
             </div>
             <div style={{ width: window.innerWidth <= 768 ? "100%" : "350px", padding: "32px", display: "flex", flexDirection: "column", gap: "24px", overflowY: "auto" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>

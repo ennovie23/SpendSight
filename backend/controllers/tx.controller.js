@@ -40,25 +40,18 @@ exports.addExpense = async (req, res) => {
     
     let finalReceiptUrl = receipt_url || '';
     
-    // If a file was uploaded, save it to Cloudinary or local fs first
+    // If a file was uploaded, save it to Cloudinary
     if (req.file) {
-      if (process.env.NODE_ENV === 'production') {
-        finalReceiptUrl = await new Promise((resolve, reject) => {
-          const uploadStream = cloudinary.uploader.upload_stream(
-            { folder: 'spendsight_uploads' },
-            (error, result) => {
-              if (error) reject(error);
-              else resolve(result.secure_url);
-            }
-          );
-          streamifier.createReadStream(req.file.buffer).pipe(uploadStream);
-        });
-      } else {
-        const filename = `${Date.now()}-${req.file.originalname.replace(/[^a-zA-Z0-9.]/g, '_')}`;
-        const filepath = path.join(__dirname, '../uploads', filename);
-        fs.writeFileSync(filepath, req.file.buffer);
-        finalReceiptUrl = `/uploads/${filename}`;
-      }
+      finalReceiptUrl = await new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          { folder: 'spendsight_uploads' },
+          (error, result) => {
+            if (error) reject(error);
+            else resolve(result.secure_url);
+          }
+        );
+        streamifier.createReadStream(req.file.buffer).pipe(uploadStream);
+      });
     }
     
     const queryText = `
