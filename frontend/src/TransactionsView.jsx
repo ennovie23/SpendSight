@@ -62,6 +62,44 @@ function TransactionsView({ email, user_id }) {
   // Modal confirmation states
   const [showModal, setShowModal] = useState(false);
   const [modalConfig, setModalConfig] = useState({ title: "", message: "", onConfirm: null });
+  const [actionModalTx, setActionModalTx] = useState(null); // Mobile action menu modal
+  const [showSuccessToast, setShowSuccessToast] = useState(false);
+  
+  // Draggable FAB state
+  const [fabPos, setFabPos] = useState({ bottom: 24, right: 24 });
+  const dragRef = useRef({ isDragging: false, startX: 0, startY: 0, startRight: 24, startBottom: 24, hasDragged: false });
+
+  const handleFabTouchStart = (e) => {
+    dragRef.current.isDragging = true;
+    dragRef.current.hasDragged = false;
+    dragRef.current.startX = e.touches[0].clientX;
+    dragRef.current.startY = e.touches[0].clientY;
+    dragRef.current.startRight = fabPos.right;
+    dragRef.current.startBottom = fabPos.bottom;
+  };
+
+  const handleFabTouchMove = (e) => {
+    if (!dragRef.current.isDragging) return;
+    const dx = dragRef.current.startX - e.touches[0].clientX;
+    const dy = dragRef.current.startY - e.touches[0].clientY;
+    
+    if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+      dragRef.current.hasDragged = true;
+    }
+
+    let newRight = dragRef.current.startRight + dx;
+    let newBottom = dragRef.current.startBottom + dy;
+    
+    // Bounds checking
+    newRight = Math.max(10, Math.min(newRight, window.innerWidth - 74));
+    newBottom = Math.max(10, Math.min(newBottom, window.innerHeight - 74));
+    
+    setFabPos({ right: newRight, bottom: newBottom });
+  };
+
+  const handleFabTouchEnd = () => {
+    dragRef.current.isDragging = false;
+  };
 
   // Helper to format date string from database format (e.g. YYYY-MM-DD) to frontend presentation
   const formatDateString = (dateStr) => {
@@ -393,6 +431,9 @@ function TransactionsView({ email, user_id }) {
         setTransactions((prev) => [{ ...savedTx, date: formatDateString(savedTx.date), amount: parseFloat(savedTx.amount) }, ...prev]);
         setScanResult(null); // close modal
         setScanFile(null); // Clear file
+        
+        setShowSuccessToast(true);
+        setTimeout(() => setShowSuccessToast(false), 3000);
       } else {
         const contentType = response.headers.get("content-type");
         let errorMessage = "Unknown server error occurred.";
@@ -475,6 +516,9 @@ function TransactionsView({ email, user_id }) {
           setEditingId(null);
           clearForm();
           fetchExpenses();
+          
+          setShowSuccessToast(true);
+          setTimeout(() => setShowSuccessToast(false), 3000);
         } else {
           alert("Failed to update expense in the database.");
         }
@@ -510,6 +554,9 @@ function TransactionsView({ email, user_id }) {
 
           clearForm();
           fetchExpenses();
+          
+          setShowSuccessToast(true);
+          setTimeout(() => setShowSuccessToast(false), 3000);
         } else {
           alert("Failed to save expense in the database.");
         }
@@ -538,6 +585,11 @@ function TransactionsView({ email, user_id }) {
     setDescription(tx.description === tx.category ? "" : tx.description);
     setDate(formattedDateForInput);
     setCustomCategory("");
+    
+    const topEl = document.getElementById("transactions-view-top");
+    if (topEl) {
+      topEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   };
 
   // Soft delete active expense handler
@@ -682,7 +734,23 @@ function TransactionsView({ email, user_id }) {
   const displayedTransactions = filteredAndSortedTransactions.slice(startIndex, endIndex);
 
   return (
-    <div style={{ color: "var(--text-primary)", fontFamily: "system-ui, -apple-system, sans-serif" }}>
+    <div id="transactions-view-top" style={{ color: "var(--text-primary)", fontFamily: "system-ui, -apple-system, sans-serif" }}>
+      {/* Hidden file inputs for both desktop and mobile scanners */}
+      <input 
+        type="file" 
+        accept="image/*" 
+        capture="environment"
+        onChange={(e) => { setShowScannerOptions(false); handleImageUpload(e); }} 
+        id="scanner-input-camera" 
+        style={{ display: "none" }} 
+      />
+      <input 
+        type="file" 
+        accept="image/*" 
+        onChange={(e) => { setShowScannerOptions(false); handleImageUpload(e); }} 
+        id="scanner-input-gallery" 
+        style={{ display: "none" }} 
+      />
       {/* Header section */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: isMobile ? "24px" : "40px" }}>
         <div>
@@ -763,23 +831,8 @@ function TransactionsView({ email, user_id }) {
       {!isMobile && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px", marginBottom: "32px" }}>
           <div style={{ position: "relative" }}>
-            <input 
-              type="file" 
-              accept="image/*" 
-              capture="environment"
-              onChange={(e) => { setShowScannerOptions(false); handleImageUpload(e); }} 
-              id="scanner-input-camera" 
-              style={{ display: "none" }} 
-            />
-            <input 
-              type="file" 
-              accept="image/*" 
-              onChange={(e) => { setShowScannerOptions(false); handleImageUpload(e); }} 
-              id="scanner-input-gallery" 
-              style={{ display: "none" }} 
-            />
             <button 
-              onClick={() => setShowScannerOptions(!showScannerOptions)}
+              onClick={(e) => { e.stopPropagation(); document.getElementById("scanner-input-gallery").click(); }}
               disabled={isScanning}
               style={{ width: "100%", backgroundColor: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "16px", padding: "28px", display: "flex", flexDirection: "column", alignItems: "center", gap: "16px", cursor: isScanning ? "not-allowed" : "pointer", transition: "all 0.2s", opacity: isScanning ? 0.7 : 1 }} 
               onMouseEnter={(e) => { if (!isScanning) e.currentTarget.style.backgroundColor = "var(--card-hover)" }} 
@@ -795,34 +848,6 @@ function TransactionsView({ email, user_id }) {
                 {isScanning ? "Scanning..." : "Snap & Log AI"}
               </span>
             </button>
-            
-            {showScannerOptions && !isScanning && (
-              <div style={{
-                position: "absolute",
-                bottom: "100%",
-                left: "50%",
-                transform: "translateX(-50%)",
-                marginBottom: "8px",
-                backgroundColor: "var(--bg-card-inner)",
-                border: "1px solid var(--border-color)",
-                borderRadius: "12px",
-                padding: "8px",
-                display: "flex",
-                flexDirection: "column",
-                gap: "4px",
-                boxShadow: "0 10px 30px rgba(0,0,0,0.3)",
-                zIndex: 10
-              }}>
-                <button 
-                  onClick={(e) => { e.stopPropagation(); document.getElementById("scanner-input-gallery").click(); }}
-                  style={{ padding: "12px 16px", backgroundColor: "transparent", border: "none", color: "var(--text-primary)", textAlign: "left", cursor: "pointer", borderRadius: "8px", fontSize: "14px", fontWeight: "600", whiteSpace: "nowrap" }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "rgba(0, 216, 246, 0.1)"}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
-                >
-                  📷 Choose Image
-                </button>
-              </div>
-            )}
           </div>
           <button 
             onClick={handleVoiceLog}
@@ -877,8 +902,8 @@ function TransactionsView({ email, user_id }) {
       {isMobile && (
         <div style={{
           position: "fixed",
-          bottom: "24px",
-          right: "24px",
+          bottom: `${fabPos.bottom}px`,
+          right: `${fabPos.right}px`,
           display: "flex",
           flexDirection: "column",
           gap: "16px",
@@ -899,7 +924,7 @@ function TransactionsView({ email, user_id }) {
                   display: "flex", alignItems: "center", gap: "12px", backgroundColor: "var(--bg-card)", border: "1px solid var(--border-color)", padding: "12px 16px", borderRadius: "100px", boxShadow: "0 4px 12px rgba(0,0,0,0.15)", cursor: "pointer"
                 }}
               >
-                <span style={{ fontSize: "15px", fontWeight: "600", color: "var(--text-primary)" }}>Scan Receipt</span>
+                <span style={{ fontSize: "15px", fontWeight: "600", color: "var(--text-primary)" }}>Snap & Log AI</span>
                 <div style={{ width: "36px", height: "36px", borderRadius: "50%", backgroundColor: "rgba(0, 216, 246, 0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00d8f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
@@ -927,7 +952,14 @@ function TransactionsView({ email, user_id }) {
           )}
           
           <button 
-            onClick={() => {
+            onTouchStart={handleFabTouchStart}
+            onTouchMove={handleFabTouchMove}
+            onTouchEnd={handleFabTouchEnd}
+            onClick={(e) => {
+              if (dragRef.current.hasDragged) {
+                e.preventDefault();
+                return;
+              }
               if (isListening || isVoiceProcessing) {
                 handleVoiceLog(); // Stop listening
               } else {
@@ -939,13 +971,15 @@ function TransactionsView({ email, user_id }) {
               width: "64px", 
               height: "64px", 
               borderRadius: "50%", 
-              backgroundColor: isListening ? "rgba(255, 69, 58, 0.1)" : (isVoiceProcessing ? "rgba(0, 216, 246, 0.1)" : "#00d8f6"), 
-              border: isListening ? "1px solid rgba(255, 69, 58, 0.8)" : (isVoiceProcessing ? "1px solid rgba(0, 216, 246, 0.8)" : "none"), 
-              color: (isListening || isVoiceProcessing) ? "transparent" : "#fff",
+              background: isListening ? "rgba(255, 69, 58, 0.1)" : (isVoiceProcessing ? "rgba(0, 216, 246, 0.1)" : "rgba(0, 216, 246, 0.15)"), 
+              border: isListening ? "1px solid rgba(255, 69, 58, 0.8)" : (isVoiceProcessing ? "1px solid rgba(0, 216, 246, 0.8)" : "1px solid rgba(0, 216, 246, 0.5)"), 
+              color: (isListening || isVoiceProcessing) ? "transparent" : "#00d8f6",
               display: "flex", 
               alignItems: "center", 
               justifyContent: "center",
-              boxShadow: isListening ? "0 0 0 4px rgba(255, 69, 58, 0.3)" : (isVoiceProcessing ? "0 0 0 4px rgba(0, 216, 246, 0.3)" : "0 4px 16px rgba(0, 216, 246, 0.4)"),
+              backdropFilter: "blur(12px)",
+              WebkitBackdropFilter: "blur(12px)",
+              boxShadow: isListening ? "0 0 0 4px rgba(255, 69, 58, 0.3)" : (isVoiceProcessing ? "0 0 0 4px rgba(0, 216, 246, 0.3)" : "none"),
               cursor: isScanning ? "not-allowed" : "pointer",
               opacity: isScanning ? 0.7 : 1,
               transition: "transform 0.3s ease",
@@ -1299,16 +1333,18 @@ function TransactionsView({ email, user_id }) {
           </div>
 
           <div style={{ overflowX: "auto" }}>
-            <div style={{ minWidth: "600px", display: "flex", flexDirection: "column" }}>
+            <div style={{ minWidth: isMobile ? "100%" : "600px", display: "flex", flexDirection: "column" }}>
               {/* Table Header */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 80px", padding: "16px 24px", borderBottom: "1px solid var(--border-color)", color: "var(--text-secondary)", fontSize: "12px", fontWeight: "600", letterSpacing: "0.5px" }}>
-                <span>DATE</span>
-                <span>CATEGORY</span>
-                <span>AMOUNT</span>
-                <span style={{ textAlign: "right" }}>ACTION</span>
-              </div>
+              {!isMobile && (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 80px", padding: "16px 24px", borderBottom: "1px solid var(--border-color)", color: "var(--text-secondary)", fontSize: "12px", fontWeight: "600", letterSpacing: "0.5px" }}>
+                  <span>DATE</span>
+                  <span>CATEGORY</span>
+                  <span>AMOUNT</span>
+                  <span style={{ textAlign: "right" }}>ACTION</span>
+                </div>
+              )}
 
-              <div style={{ overflowY: "auto", maxHeight: "480px", display: "flex", flexDirection: "column" }}>
+              <div style={{ overflowY: "auto", maxHeight: "480px", display: "flex", flexDirection: "column", gap: isMobile ? "12px" : "0", padding: isMobile ? "4px" : "0" }}>
                 {displayedTransactions.length === 0 ? (
                   <div style={{ padding: "32px 16px", textAlign: "center", color: "var(--text-secondary)", fontSize: "14px" }}>
                     {viewTrash ? "Trash bin is empty." : "No transactions logged yet."}
@@ -1319,8 +1355,49 @@ function TransactionsView({ email, user_id }) {
                     const isEditingThis = editingId === tx.id;
                     const rowBg = index % 2 === 0 ? "transparent" : "rgba(255, 255, 255, 0.02)";
                     
+                    const actionButtons = viewTrash ? (
+                      <>
+                        <button onClick={() => handleRestoreClick(tx.id)} title="Restore" style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-secondary)" }} onMouseEnter={(e) => e.currentTarget.style.color = "#00d8f6"} onMouseLeave={(e) => e.currentTarget.style.color = "var(--text-secondary)"}>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 2v6h6M21.5 22v-6h-6"/><path d="M22 11.5A10 10 0 0 0 9.5 2.5M2 12.5a10 10 0 0 0 12.5 9"/></svg>
+                        </button>
+                        <button onClick={() => handlePurgeClick(tx.id)} title="Delete Permanently" style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-secondary)" }} onMouseEnter={(e) => e.currentTarget.style.color = "#FF5252"} onMouseLeave={(e) => e.currentTarget.style.color = "var(--text-secondary)"}>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button onClick={() => handleEditClick(tx)} title="Edit Expense" style={{ background: "none", border: "none", cursor: "pointer", color: isEditingThis ? "#00d8f6" : "var(--text-secondary)" }} onMouseEnter={(e) => e.currentTarget.style.color = "#00d8f6"} onMouseLeave={(e) => e.currentTarget.style.color = isEditingThis ? "#00d8f6" : "var(--text-secondary)"}>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                        </button>
+                        <button onClick={() => handleDeleteClick(tx.id)} title="Move to Trash" style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-secondary)" }} onMouseEnter={(e) => e.currentTarget.style.color = "#FF5252"} onMouseLeave={(e) => e.currentTarget.style.color = "var(--text-secondary)"}>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                        </button>
+                      </>
+                    );
+
+                    if (isMobile) {
+                      return (
+                        <div key={tx.id} onClick={() => setActionModalTx(tx)} style={{ cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px", borderRadius: "12px", backgroundColor: isEditingThis ? "rgba(0, 216, 246, 0.08)" : "rgba(255, 255, 255, 0.02)", border: "1px solid var(--border-color)", opacity: viewTrash && !tx.deleted_at ? 0.5 : 1 }}>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                            <span style={{ fontSize: "13px", color: "var(--text-secondary)" }}>
+                              {tx.date ? new Date(tx.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}
+                            </span>
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", backgroundColor: styleData.bg, color: styleData.color, padding: "4px 10px", borderRadius: "12px", fontSize: "12px", fontWeight: "bold", width: "fit-content" }}>
+                              <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: styleData.dot }}></span>
+                              {tx.category}
+                            </span>
+                          </div>
+                          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "10px" }}>
+                            <span style={{ fontSize: "16px", fontWeight: "bold", color: "var(--text-primary)", letterSpacing: "0.5px" }}>
+                              ₱{tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    }
+                    
                     return (
-                      <div key={tx.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 80px", alignItems: "center", padding: "16px 24px", borderBottom: "1px solid var(--border-color)", backgroundColor: isEditingThis ? "rgba(0, 216, 246, 0.08)" : rowBg, opacity: viewTrash && !tx.deleted_at ? 0.5 : 1, transition: "background-color 0.2s" }} onMouseEnter={(e) => {if(!isEditingThis) e.currentTarget.style.backgroundColor = "var(--bg-card-inner)"}} onMouseLeave={(e) => {if(!isEditingThis) e.currentTarget.style.backgroundColor = rowBg}}>
+                      <div key={tx.id} onClick={(e) => { if (e.target.closest('button')) return; setReceiptPreview(tx); }} style={{ cursor: "pointer", display: "grid", gridTemplateColumns: "1fr 1fr 1fr 80px", alignItems: "center", padding: "16px 24px", borderBottom: "1px solid var(--border-color)", backgroundColor: isEditingThis ? "rgba(0, 216, 246, 0.08)" : rowBg, opacity: viewTrash && !tx.deleted_at ? 0.5 : 1, transition: "background-color 0.2s" }} onMouseEnter={(e) => {if(!isEditingThis) e.currentTarget.style.backgroundColor = "var(--bg-card-inner)"}} onMouseLeave={(e) => {if(!isEditingThis) e.currentTarget.style.backgroundColor = rowBg}}>
                         
                         {/* Date */}
                         <span style={{ fontSize: "14px", color: "var(--text-secondary)" }}>
@@ -1354,41 +1431,12 @@ function TransactionsView({ email, user_id }) {
                         
                         {/* Action Buttons */}
                         <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", opacity: isEditingThis ? 1 : 0.6, transition: "opacity 0.2s" }} onMouseEnter={(e) => e.currentTarget.style.opacity = 1} onMouseLeave={(e) => e.currentTarget.style.opacity = isEditingThis ? 1 : 0.6}>
-                        {viewTrash ? (
-                          <>
-                            {tx.receipt_url && (
-                              <button onClick={() => setReceiptPreview(tx)} title="View Receipt" style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-secondary)" }} onMouseEnter={(e) => e.currentTarget.style.color = "#00d8f6"} onMouseLeave={(e) => e.currentTarget.style.color = "var(--text-secondary)"}>
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><circle cx="10" cy="13" r="2"/><path d="m16 17-2.5-2.5-1.5 1.5-2-2L8 16"/></svg>
-                              </button>
-                            )}
-                            {/* Restore Button */}
-                            <button onClick={() => handleRestoreClick(tx.id)} title="Restore" style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-secondary)" }} onMouseEnter={(e) => e.currentTarget.style.color = "#00d8f6"} onMouseLeave={(e) => e.currentTarget.style.color = "var(--text-secondary)"}>
-                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 2v6h6M21.5 22v-6h-6"/><path d="M22 11.5A10 10 0 0 0 9.5 2.5M2 12.5a10 10 0 0 0 12.5 9"/></svg>
-                            </button>
-                            <button onClick={() => handlePurgeClick(tx.id)} title="Delete Permanently" style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-secondary)" }} onMouseEnter={(e) => e.currentTarget.style.color = "#FF5252"} onMouseLeave={(e) => e.currentTarget.style.color = "var(--text-secondary)"}>
-                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            {tx.receipt_url && (
-                              <button onClick={() => setReceiptPreview(tx)} title="View Receipt" style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-secondary)" }} onMouseEnter={(e) => e.currentTarget.style.color = "#00d8f6"} onMouseLeave={(e) => e.currentTarget.style.color = "var(--text-secondary)"}>
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><circle cx="10" cy="13" r="2"/><path d="m16 17-2.5-2.5-1.5 1.5-2-2L8 16"/></svg>
-                              </button>
-                            )}
-                            <button onClick={() => handleEditClick(tx)} title="Edit Expense" style={{ background: "none", border: "none", cursor: "pointer", color: isEditingThis ? "#00d8f6" : "var(--text-secondary)" }} onMouseEnter={(e) => e.currentTarget.style.color = "#00d8f6"} onMouseLeave={(e) => e.currentTarget.style.color = isEditingThis ? "#00d8f6" : "var(--text-secondary)"}>
-                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                            </button>
-                            <button onClick={() => handleDeleteClick(tx.id)} title="Move to Trash" style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-secondary)" }} onMouseEnter={(e) => e.currentTarget.style.color = "#FF5252"} onMouseLeave={(e) => e.currentTarget.style.color = "var(--text-secondary)"}>
-                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                            </button>
-                          </>
-                        )}
+                          {actionButtons}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })
-            )}
+                    );
+                  })
+                )}
               </div>
             </div>
           </div>
@@ -1520,6 +1568,42 @@ function TransactionsView({ email, user_id }) {
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Success Toast */}
+      {showSuccessToast && (
+        <div style={{
+          position: "fixed",
+          bottom: "40px",
+          left: "50%",
+          transform: "translateX(-50%)",
+          backgroundColor: "#00d8f6",
+          color: "#000",
+          padding: "12px 24px",
+          borderRadius: "50px",
+          fontWeight: "700",
+          fontSize: "14px",
+          boxShadow: "0 10px 30px rgba(0, 216, 246, 0.4)",
+          zIndex: 3000,
+          animation: "toastFade 0.3s ease-out, toastFadeOut 0.3s ease-in 2.7s forwards"
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            Expense Saved Successfully!
+          </div>
+          <style>
+            {`
+              @keyframes toastFade {
+                from { opacity: 0; transform: translate(-50%, 20px); }
+                to { opacity: 1; transform: translate(-50%, 0); }
+              }
+              @keyframes toastFadeOut {
+                from { opacity: 1; transform: translate(-50%, 0); }
+                to { opacity: 0; transform: translate(-50%, 20px); }
+              }
+            `}
+          </style>
         </div>
       )}
 
@@ -1781,6 +1865,90 @@ function TransactionsView({ email, user_id }) {
         </div>
       )}
 
+      {/* Mobile Action Menu Modal */}
+      {actionModalTx && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: "rgba(0,0,0,0.7)",
+          display: "flex",
+          alignItems: "flex-end",
+          zIndex: 2500,
+          backdropFilter: "blur(2px)",
+        }} onClick={() => setActionModalTx(null)}>
+          <div style={{
+            width: "100%",
+            backgroundColor: "var(--bg-card)",
+            borderTopLeftRadius: "24px",
+            borderTopRightRadius: "24px",
+            padding: "24px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "16px",
+            borderTop: "1px solid var(--border-color)",
+            boxShadow: "0 -10px 40px rgba(0,0,0,0.5)"
+          }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ width: "40px", height: "4px", backgroundColor: "var(--border-color)", borderRadius: "2px", margin: "0 auto -8px" }} />
+            <h3 style={{ margin: "8px 0 16px 0", fontSize: "18px", color: "var(--text-primary)", textAlign: "center" }}>Transaction Options</h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              <button 
+                onClick={() => { setReceiptPreview(actionModalTx); setActionModalTx(null); }} 
+                style={{ padding: "16px", backgroundColor: "var(--bg-app)", border: "1px solid var(--border-color)", borderRadius: "12px", color: "var(--text-primary)", fontSize: "16px", fontWeight: "600", cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center", gap: "8px" }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                View Details
+              </button>
+              
+              {!viewTrash ? (
+                <>
+                  <button 
+                    onClick={() => { handleEditClick(actionModalTx); setActionModalTx(null); }} 
+                    style={{ padding: "16px", backgroundColor: "var(--bg-app)", border: "1px solid var(--border-color)", borderRadius: "12px", color: "#00d8f6", fontSize: "16px", fontWeight: "600", cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center", gap: "8px" }}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    Edit Form
+                  </button>
+                  <button 
+                    onClick={() => { handleDeleteClick(actionModalTx.id); setActionModalTx(null); }} 
+                    style={{ padding: "16px", backgroundColor: "rgba(255, 82, 82, 0.1)", border: "1px solid rgba(255, 82, 82, 0.2)", borderRadius: "12px", color: "#FF5252", fontSize: "16px", fontWeight: "600", cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center", gap: "8px" }}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    Move to Trash
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button 
+                    onClick={() => { handleRestoreClick(actionModalTx.id); setActionModalTx(null); }} 
+                    style={{ padding: "16px", backgroundColor: "rgba(0, 216, 246, 0.1)", border: "1px solid rgba(0, 216, 246, 0.2)", borderRadius: "12px", color: "#00d8f6", fontSize: "16px", fontWeight: "600", cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center", gap: "8px" }}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 2v6h6M21.5 22v-6h-6"/><path d="M22 11.5A10 10 0 0 0 9.5 2.5M2 12.5a10 10 0 0 0 12.5 9"/></svg>
+                    Restore
+                  </button>
+                  <button 
+                    onClick={() => { handlePurgeClick(actionModalTx.id); setActionModalTx(null); }} 
+                    style={{ padding: "16px", backgroundColor: "rgba(255, 82, 82, 0.1)", border: "1px solid rgba(255, 82, 82, 0.2)", borderRadius: "12px", color: "#FF5252", fontSize: "16px", fontWeight: "600", cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center", gap: "8px" }}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                    Delete Permanently
+                  </button>
+                </>
+              )}
+              
+              <button 
+                onClick={() => setActionModalTx(null)} 
+                style={{ padding: "16px", backgroundColor: "transparent", border: "1px solid var(--border-color)", borderRadius: "12px", color: "var(--text-secondary)", fontSize: "16px", fontWeight: "600", cursor: "pointer", marginTop: "4px" }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
 
       {receiptPreview && (
         <div style={{
@@ -1801,11 +1969,13 @@ function TransactionsView({ email, user_id }) {
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
           </div>
-          <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", maxWidth: "900px", width: "90%", maxHeight: "90vh", backgroundColor: "var(--bg-card)", borderRadius: "16px", overflow: "hidden" }}>
-            <div style={{ flex: 1, backgroundColor: "#000", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-              <img src={receiptPreview.receipt_url.startsWith('http') ? receiptPreview.receipt_url : `${import.meta.env.VITE_API_URL}${receiptPreview.receipt_url}`} alt="Receipt" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
-            </div>
-            <div style={{ width: isMobile ? "100%" : "350px", padding: "32px", display: "flex", flexDirection: "column", gap: "24px", overflowY: "auto" }}>
+          <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", maxWidth: (!receiptPreview.receipt_url && !isMobile) ? "400px" : "900px", width: "90%", maxHeight: "90vh", backgroundColor: "var(--bg-card)", borderRadius: "16px", overflow: "hidden", margin: "auto" }}>
+            {receiptPreview.receipt_url && (
+              <div style={{ flex: 1, backgroundColor: "#000", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                <img src={receiptPreview.receipt_url.startsWith('http') ? receiptPreview.receipt_url : `${import.meta.env.VITE_API_URL}${receiptPreview.receipt_url}`} alt="Receipt" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
+              </div>
+            )}
+            <div style={{ width: (isMobile || !receiptPreview.receipt_url) ? "100%" : "350px", padding: "32px", display: "flex", flexDirection: "column", gap: "24px", overflowY: "auto" }}>
               <h3 style={{ margin: 0, color: "var(--text-primary)", fontSize: "20px" }}>Transaction Details</h3>
               <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
                 <div>
