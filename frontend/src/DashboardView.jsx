@@ -6,13 +6,15 @@ function DashboardView({ email, user_id }) {
   const currentMonthIdx = new Date().getMonth(); // 6 (July)
   const currentMonthName = monthsShort[currentMonthIdx]; // "Jul"
 
-  const [selectedMonth, setSelectedMonth] = useState("All");
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
+  const [selectedMonth, setSelectedMonth] = useState(() => localStorage.getItem("globalSelectedMonth") || "All");
+  const [selectedYear, setSelectedYear] = useState(() => localStorage.getItem("globalSelectedYear") || new Date().getFullYear().toString());
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const [analyticsData, setAnalyticsData] = useState({ total_spend: 0 });
   const [loading, setLoading] = useState(false);
   const [availableYears, setAvailableYears] = useState(["2026"]);
   const [walletBalance, setWalletBalance] = useState(0);
+  const [selectedAnomaly, setSelectedAnomaly] = useState(null);
+  const [photoFullscreen, setPhotoFullscreen] = useState(false);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 768);
@@ -39,6 +41,7 @@ function DashboardView({ email, user_id }) {
   useEffect(() => {
     if (selectedMonth !== "All" && !displayedMonths.includes(selectedMonth)) {
       setSelectedMonth("All");
+      localStorage.setItem("globalSelectedMonth", "All");
     }
   }, [selectedYear, displayedMonths]);
 
@@ -239,7 +242,11 @@ function DashboardView({ email, user_id }) {
           {/* Year Dropdown */}
           <select
             value={selectedYear}
-            onChange={(e) => setSelectedYear(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value;
+              setSelectedYear(val);
+              localStorage.setItem("globalSelectedYear", val);
+            }}
             disabled={loading}
             style={{
               backgroundColor: "var(--bg-card)",
@@ -263,7 +270,11 @@ function DashboardView({ email, user_id }) {
           {/* Month Selector dropdown */}
           <select
             value={selectedMonth}
-            onChange={(e) => setSelectedMonth(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value;
+              setSelectedMonth(val);
+              localStorage.setItem("globalSelectedMonth", val);
+            }}
             disabled={loading}
             style={{
               backgroundColor: "var(--bg-card)",
@@ -602,17 +613,19 @@ function DashboardView({ email, user_id }) {
                   }
                 })();
                 return (
-                  <div key={idx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px", borderRadius: "12px", backgroundColor: "rgba(255, 255, 255, 0.02)", border: "1px solid var(--border-color)" }}>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                  <div key={idx} onClick={() => setSelectedAnomaly(anomaly)} style={{ cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderRadius: "12px", backgroundColor: "rgba(255, 255, 255, 0.02)", border: "1px solid var(--border-color)", transition: "background-color 0.2s" }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "var(--bg-card-inner)"} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.02)"}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                       <span style={{ fontSize: "13px", color: "var(--text-secondary)" }}>{anomaly.date}</span>
                       <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", backgroundColor: catColors.bg, color: catColors.color, padding: "4px 10px", borderRadius: "12px", fontSize: "12px", fontWeight: "bold", width: "fit-content" }}>
                         <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: catColors.dot }}></span>
                         {anomaly.category}
                       </span>
                     </div>
-                    <span style={{ fontSize: "16px", fontWeight: "bold", color: "var(--text-primary)", letterSpacing: "0.5px" }}>
-                      {formatCurrencySimple(anomaly.amount)}
-                    </span>
+                    <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+                      <span style={{ fontSize: "16px", fontWeight: "bold", color: "var(--text-primary)", letterSpacing: "0.5px" }}>
+                        {formatCurrencySimple(anomaly.amount)}
+                      </span>
+                    </div>
                   </div>
                 );
               })}
@@ -620,6 +633,123 @@ function DashboardView({ email, user_id }) {
           </div>
         </div>
       )}
+      {/* Anomaly ReceiptPreview Style Modal */}
+      {selectedAnomaly && (() => {
+        const catColors = (() => {
+          switch (selectedAnomaly.category) {
+            case "Food": return { color: "#00d8f6", bg: "rgba(0, 216, 246, 0.1)", dot: "#00d8f6" };
+            case "Transport": return { color: "#FF007A", bg: "rgba(255, 0, 122, 0.1)", dot: "#FF007A" };
+            case "Utilities": return { color: "#9F7AEA", bg: "rgba(121, 40, 202, 0.1)", dot: "#9F7AEA" };
+            case "Entertainment": return { color: "#00E676", bg: "rgba(0, 230, 118, 0.1)", dot: "#00E676" };
+            case "Savings": return { color: "#FFD700", bg: "rgba(255, 215, 0, 0.1)", dot: "#FFD700" };
+            default: {
+              let hash = 0;
+              for (let i = 0; i < selectedAnomaly.category.length; i++) hash = selectedAnomaly.category.charCodeAt(i) + ((hash << 5) - hash);
+              const hue = Math.abs(hash % 360);
+              const c = `hsl(${hue}, 85%, 60%)`;
+              return { color: c, bg: `hsla(${hue}, 85%, 60%, 0.12)`, dot: c };
+            }
+          }
+        })();
+
+        return (
+          <div style={{
+            position: "fixed",
+            top: isMobile ? "57px" : 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0,0,0,0.85)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 3000,
+            backdropFilter: "blur(4px)",
+          }}>
+            <div style={{ 
+              display: "flex", 
+              flexDirection: isMobile ? "column" : "row", 
+              maxWidth: isMobile ? "300px" : "900px", 
+              width: "90%", 
+              maxHeight: isMobile ? "70vh" : "90vh", 
+              backgroundColor: "var(--bg-card)", 
+              borderRadius: "16px", 
+              overflow: "hidden",
+              position: "relative",
+              boxShadow: "0 24px 48px rgba(0,0,0,0.5)"
+            }}>
+              <button onClick={() => { setSelectedAnomaly(null); setPhotoFullscreen(false); }} style={{ position: "absolute", top: "10px", right: "10px", background: "rgba(0,0,0,0.6)", borderRadius: "50%", border: "none", color: "#fff", cursor: "pointer", padding: "6px", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10 }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+              
+              <div 
+                style={{ flex: 1, backgroundColor: "#000", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", maxHeight: isMobile ? "25vh" : "none", minHeight: isMobile ? "120px" : "auto", cursor: (isMobile && selectedAnomaly.receipt_url) ? "zoom-in" : "default" }}
+                onClick={() => { if (isMobile && selectedAnomaly.receipt_url) setPhotoFullscreen(true); }}
+              >
+                {selectedAnomaly.receipt_url ? (
+                  <img src={selectedAnomaly.receipt_url.startsWith('http') ? selectedAnomaly.receipt_url : `${import.meta.env.VITE_API_URL}${selectedAnomaly.receipt_url}`} alt="Receipt" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", padding: isMobile ? "8px" : "0" }} />
+                ) : (
+                  <div style={{ color: "var(--text-secondary)", fontSize: "14px" }}>No receipt image</div>
+                )}
+              </div>
+              
+              <div style={{ width: isMobile ? "100%" : "350px", padding: isMobile ? "16px" : "32px", display: "flex", flexDirection: "column", gap: isMobile ? "12px" : "24px", overflowY: "auto" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <h3 style={{ margin: 0, color: "var(--text-primary)", fontSize: isMobile ? "16px" : "20px" }}>Transaction Details</h3>
+                </div>
+                
+                <div style={{ display: "flex", flexDirection: "column", gap: isMobile ? "10px" : "16px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: isMobile ? "10px" : "12px", color: "var(--text-secondary)", marginBottom: "2px" }}>MERCHANT</div>
+                      <div style={{ fontSize: isMobile ? "13px" : "16px", color: "var(--text-primary)", fontWeight: "500" }}>{selectedAnomaly.merchant || "Unknown"}</div>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: isMobile ? "10px" : "12px", color: "var(--text-secondary)", marginBottom: "2px" }}>DATE</div>
+                      <div style={{ fontSize: isMobile ? "13px" : "16px", color: "var(--text-primary)", fontWeight: "500" }}>{new Date(selectedAnomaly.date).toLocaleDateString()}</div>
+                    </div>
+                  </div>
+                  
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: isMobile ? "10px" : "12px", color: "var(--text-secondary)", marginBottom: "2px" }}>CATEGORY</div>
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", backgroundColor: catColors.bg, color: catColors.color, padding: isMobile ? "2px 8px" : "4px 10px", borderRadius: "12px", fontSize: isMobile ? "10px" : "12px", fontWeight: "bold" }}>
+                        <span style={{ width: isMobile ? "4px" : "6px", height: isMobile ? "4px" : "6px", borderRadius: "50%", backgroundColor: catColors.dot }}></span>
+                        {selectedAnomaly.category}
+                      </div>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: isMobile ? "10px" : "12px", color: "var(--text-secondary)", marginBottom: "2px" }}>AMOUNT</div>
+                      <div style={{ fontSize: isMobile ? "14px" : "18px", color: "#00d8f6", fontWeight: "800" }}>{formatCurrencySimple(selectedAnomaly.amount)}</div>
+                    </div>
+                  </div>
+                  
+                  <div style={{ borderTop: "1px solid var(--border-color)", paddingTop: isMobile ? "10px" : "16px" }}>
+                    <div style={{ fontSize: isMobile ? "10px" : "12px", color: "var(--text-secondary)", marginBottom: "4px" }}>NOTE</div>
+                    <div style={{ fontSize: isMobile ? "12px" : "14px", color: "var(--text-primary)", lineHeight: "1.4" }}>{selectedAnomaly.notes || "No notes attached."}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Fullscreen Photo Viewer (Mobile Only) */}
+            {isMobile && photoFullscreen && selectedAnomaly.receipt_url && (
+              <div 
+                style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "#000", zIndex: 3500, display: "flex", flexDirection: "column" }}
+              >
+                <div style={{ display: "flex", justifyContent: "flex-end", padding: "16px" }}>
+                  <button onClick={() => setPhotoFullscreen(false)} style={{ background: "rgba(255,255,255,0.2)", borderRadius: "50%", border: "none", color: "#fff", padding: "8px", cursor: "pointer" }}>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
+                <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", overflow: "auto" }}>
+                  <img src={selectedAnomaly.receipt_url.startsWith('http') ? selectedAnomaly.receipt_url : `${import.meta.env.VITE_API_URL}${selectedAnomaly.receipt_url}`} alt="Receipt Fullscreen" style={{ width: "100%", objectFit: "contain" }} />
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
     </div>
   );

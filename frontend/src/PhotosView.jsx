@@ -15,7 +15,7 @@ const getCategoryStyles = (cat) => {
 function PhotosView({ user_id }) {
   const [photos, setPhotos] = useState([]);
   const [filteredPhotos, setFilteredPhotos] = useState([]);
-  const [selectedCategory, setSelectedCategory] = useState("All");
+  const [selectedCategory, setSelectedCategory] = useState(() => localStorage.getItem("photosSelectedCategory") || "All");
   const [selectedPhoto, setSelectedPhoto] = useState(null);
   const [photoFullscreen, setPhotoFullscreen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -100,7 +100,11 @@ function PhotosView({ user_id }) {
           <span style={{ fontSize: "14px", color: "var(--text-secondary)", fontWeight: "500" }}>Filter:</span>
           <select 
             value={selectedCategory} 
-            onChange={(e) => setSelectedCategory(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value;
+              setSelectedCategory(val);
+              localStorage.setItem("photosSelectedCategory", val);
+            }}
             style={{ backgroundColor: "transparent", border: "none", color: "var(--text-primary)", fontSize: "15px", fontWeight: "600", outline: "none", cursor: "pointer", textAlign: "right", paddingRight: "4px" }}
           >
             {categories.map(cat => <option key={cat} value={cat} style={{ backgroundColor: "var(--bg-card)" }}>{cat}</option>)}

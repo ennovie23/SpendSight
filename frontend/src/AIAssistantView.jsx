@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 
 function AIAssistantView() {
   const [sessions, setSessions] = useState([]);
-  const [currentSessionId, setCurrentSessionId] = useState(null);
+  const [currentSessionId, setCurrentSessionId] = useState(() => localStorage.getItem("aiCurrentSessionId") || null);
   
   const initialMessage = { role: "assistant", text: "Hi there! I am your SpendSight AI. I can help you analyze your spending, set goals, or find anomalies. What would you like to know?" };
   
@@ -51,6 +51,11 @@ function AIAssistantView() {
 
   const selectSession = async (sessionId) => {
     setCurrentSessionId(sessionId);
+    if (sessionId) {
+      localStorage.setItem("aiCurrentSessionId", sessionId);
+    } else {
+      localStorage.removeItem("aiCurrentSessionId");
+    }
     try {
       const res = await fetch(`${API_URL}/api/chat/sessions/${sessionId}/messages`);
       if (res.ok) {
@@ -68,8 +73,16 @@ function AIAssistantView() {
 
   const createNewChat = () => {
     setCurrentSessionId(null);
+    localStorage.removeItem("aiCurrentSessionId");
     setMessages([initialMessage]);
   };
+
+  useEffect(() => {
+    const savedSessionId = localStorage.getItem("aiCurrentSessionId");
+    if (savedSessionId) {
+      selectSession(savedSessionId);
+    }
+  }, []);
 
   const confirmDeleteSession = async () => {
     if (!sessionToDelete) return;

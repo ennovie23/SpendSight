@@ -78,7 +78,11 @@ def main():
             anomalies.append({
                 "amount": float(row['amount']),
                 "category": row['category'],
-                "date": row['date'].strftime('%Y-%m-%d')
+                "date": row['date'].strftime('%Y-%m-%d'),
+                "merchant": str(row.get('merchant', '')) if pd.notnull(row.get('merchant')) else '',
+                "receipt_url": str(row.get('receipt_url', '')) if pd.notnull(row.get('receipt_url')) else '',
+                "notes": str(row.get('notes', '')) if pd.notnull(row.get('notes')) else '',
+                "bank_name": str(row.get('bank_name', '')) if pd.notnull(row.get('bank_name')) else ''
             })
 
     # 5. Package into a clean JSON layout
