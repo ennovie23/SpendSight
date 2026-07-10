@@ -224,18 +224,18 @@ function DashboardView({ email, user_id }) {
   return (
     <div style={{ color: "var(--text-primary)", fontFamily: "system-ui, -apple-system, sans-serif" }}>
       {/* Title Header with Month & Year Selectors */}
-      <div style={{ marginBottom: "36px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div style={{ marginBottom: isMobile ? "24px" : "36px", display: "flex", flexDirection: isMobile ? "column" : "row", gap: "16px", justifyContent: "space-between", alignItems: isMobile ? "flex-start" : "center" }}>
         <div style={{ textAlign: "left" }}>
-          <h1 style={{ fontSize: "32px", fontWeight: "700", color: "var(--text-primary)", margin: "0 0 6px 0" }}>
+          <h1 style={{ fontSize: isMobile ? "24px" : "32px", fontWeight: "700", color: "var(--text-primary)", margin: "0 0 6px 0" }}>
             Overview
           </h1>
-          <p style={{ color: "var(--text-secondary)", fontSize: "16px", margin: 0 }}>
+          <p style={{ color: "var(--text-secondary)", fontSize: isMobile ? "14px" : "16px", margin: 0 }}>
             Your financial insights at a glance.
           </p>
         </div>
 
         {/* Filters Container */}
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", width: isMobile ? "100%" : "auto" }}>
           {/* Year Dropdown */}
           <select
             value={selectedYear}
@@ -302,7 +302,7 @@ function DashboardView({ email, user_id }) {
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fit, minmax(220px, 1fr))", gap: "24px", marginBottom: "32px" }}>
         
         {/* Wallet Balance Card */}
-        <div style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "16px", padding: "28px 24px", position: "relative", textAlign: "left", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+        <div style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "16px", padding: isMobile ? "16px 20px" : "28px 24px", position: "relative", textAlign: "left", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
@@ -313,7 +313,7 @@ function DashboardView({ email, user_id }) {
                 <span style={{ color: "var(--text-secondary)", fontSize: "15px", fontWeight: "600" }}>Wallet Balance</span>
               </div>
             </div>
-            <div style={{ fontSize: "36px", fontWeight: "800", color: "var(--text-primary)" }}>
+            <div style={{ fontSize: isMobile ? "24px" : "36px", fontWeight: "800", color: "var(--text-primary)" }}>
               {formatCurrencySimple(parseFloat(walletBalance))}
             </div>
           </div>
@@ -327,7 +327,7 @@ function DashboardView({ email, user_id }) {
         </div>
         
         {/* Total Monthly Spend Card (Dynamic from Python analytics) */}
-        <div style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "16px", padding: "28px 24px", position: "relative", textAlign: "left" }}>
+        <div style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "16px", padding: isMobile ? "16px 20px" : "28px 24px", position: "relative", textAlign: "left" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00d8f6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -339,7 +339,7 @@ function DashboardView({ email, user_id }) {
               <span style={{ fontSize: "12px", color: "var(--text-secondary)" }}>Recalculating...</span>
             )}
           </div>
-          <div style={{ fontSize: "36px", fontWeight: "800", color: "var(--text-primary)" }}>
+          <div style={{ fontSize: isMobile ? "24px" : "36px", fontWeight: "800", color: "var(--text-primary)" }}>
             {totalSpendFormatted}
           </div>
           {/* Subtle background pulse icon graphic */}
@@ -351,7 +351,7 @@ function DashboardView({ email, user_id }) {
         </div>
 
         {/* Weekly Average Card (Dynamic from Python analytics) */}
-        <div style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "16px", padding: "28px 24px", position: "relative", textAlign: "left" }}>
+        <div style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "16px", padding: isMobile ? "16px 20px" : "28px 24px", position: "relative", textAlign: "left" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FF9800" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -364,8 +364,8 @@ function DashboardView({ email, user_id }) {
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
-            <span style={{ fontSize: "36px", fontWeight: "800", color: "var(--text-primary)" }}>{weeklyAveFormatted}</span>
-            <span style={{ fontSize: "15px", color: "var(--text-secondary)" }}>/wk</span>
+            <span style={{ fontSize: isMobile ? "24px" : "36px", fontWeight: "800", color: "var(--text-primary)" }}>{weeklyAveFormatted}</span>
+            <span style={{ fontSize: "14px", color: "var(--text-secondary)" }}>/wk</span>
           </div>
           {/* Subtle calendar graphic */}
           <div style={{ position: "absolute", right: "24px", bottom: "24px", opacity: 0.15 }}>
@@ -379,7 +379,7 @@ function DashboardView({ email, user_id }) {
         </div>
 
         {/* Daily Average Card (Dynamic from Python analytics) */}
-        <div style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "16px", padding: "28px 24px", position: "relative", textAlign: "left" }}>
+        <div style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "16px", padding: isMobile ? "16px 20px" : "28px 24px", position: "relative", textAlign: "left" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3F51B5" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -391,8 +391,8 @@ function DashboardView({ email, user_id }) {
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
-            <span style={{ fontSize: "36px", fontWeight: "800", color: "var(--text-primary)" }}>{dailyAveFormatted}</span>
-            <span style={{ fontSize: "15px", color: "var(--text-secondary)" }}>/day</span>
+            <span style={{ fontSize: isMobile ? "24px" : "36px", fontWeight: "800", color: "var(--text-primary)" }}>{dailyAveFormatted}</span>
+            <span style={{ fontSize: "14px", color: "var(--text-secondary)" }}>/day</span>
           </div>
           {/* Trend arrow graphic */}
           <div style={{ position: "absolute", right: "24px", bottom: "24px", opacity: 0.15 }}>
@@ -404,7 +404,7 @@ function DashboardView({ email, user_id }) {
         </div>
 
         {/* Highest Category Card (Dynamic from Python analytics) */}
-        <div style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "16px", padding: "28px 24px", textAlign: "left" }}>
+        <div style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "16px", padding: isMobile ? "16px 20px" : "28px 24px", textAlign: "left" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00E676" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10" />
@@ -412,7 +412,7 @@ function DashboardView({ email, user_id }) {
             </svg>
             <span style={{ color: "var(--text-secondary)", fontSize: "15px", fontWeight: "600" }}>Highest Category</span>
           </div>
-          <div style={{ fontSize: "24px", fontWeight: "800", color: "var(--text-primary)", marginBottom: "12px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={highestCategory}>
+          <div style={{ fontSize: isMobile ? "20px" : "24px", fontWeight: "800", color: "var(--text-primary)", marginBottom: "12px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={highestCategory}>
             {highestCategory}
           </div>
           {/* Progress bar container */}
@@ -426,7 +426,7 @@ function DashboardView({ email, user_id }) {
       </div>
 
       {/* Weekly Budget Health Card */}
-      <div style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "16px", padding: "24px 28px", marginBottom: "32px", position: "relative" }}>
+      <div style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "16px", padding: isMobile ? "20px" : "24px 28px", marginBottom: "32px", position: "relative" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
             <div style={{ backgroundColor: "rgba(0, 230, 118, 0.1)", borderRadius: "8px", padding: "8px", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -453,10 +453,10 @@ function DashboardView({ email, user_id }) {
       </div>
 
       {/* Charts Section Row */}
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fit, minmax(400px, 1fr))", gap: "24px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fit, minmax(300px, 1fr))", gap: "24px" }}>
         
         {/* Spending Breakdown Card (Mocked) */}
-        <div style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "16px", padding: "28px" }}>
+        <div style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "16px", padding: isMobile ? "20px" : "28px" }}>
           <h2 style={{ fontSize: "18px", fontWeight: "700", color: "var(--text-primary)", margin: "0 0 24px 0", textAlign: "left" }}>
             Spending Breakdown
           </h2>
@@ -490,7 +490,7 @@ function DashboardView({ email, user_id }) {
             </div>
 
             {/* Color Legend */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px 24px", textAlign: "left" }}>
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "12px 24px", textAlign: "left" }}>
               {breakdownList.map((item, idx) => (
                 <div key={idx} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                   <span style={{ width: "10px", height: "10px", borderRadius: "50%", backgroundColor: item.color }}></span>
@@ -504,7 +504,7 @@ function DashboardView({ email, user_id }) {
         </div>
 
         {/* Predictive Spending Forecast */}
-        <div style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "16px", padding: "28px" }}>
+        <div style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "16px", padding: isMobile ? "20px" : "28px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "32px" }}>
             <div style={{ backgroundColor: "rgba(121, 40, 202, 0.1)", borderRadius: "8px", padding: "8px", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7928CA" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
