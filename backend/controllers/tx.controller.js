@@ -36,7 +36,7 @@ const streamifier = require('streamifier');
 // Save a new expense to the database
 exports.addExpense = async (req, res) => {
   try {
-    const { amount, category, description, date, user_id, receipt_url, merchant } = req.body;
+    const { amount, category, description, date, user_id, receipt_url, merchant, linked_account_id } = req.body;
     
     let finalReceiptUrl = receipt_url || '';
     
@@ -53,18 +53,46 @@ exports.addExpense = async (req, res) => {
         streamifier.createReadStream(req.file.buffer).pipe(uploadStream);
       });
     }
+
+    await pool.query('BEGIN');
+
+    // 1. Validate Balance if linked_account_id is provided
+    if (linked_account_id) {
+      const accountRes = await pool.query('SELECT balance FROM linked_accounts WHERE id = $1', [linked_account_id]);
+      if (accountRes.rows.length === 0) {
+        await pool.query('ROLLBACK');
+        return res.status(404).json({ error: 'Selected payment method not found.' });
+      }
+
+      const currentBalance = parseFloat(accountRes.rows[0].balance);
+      const expenseAmount = parseFloat(amount);
+
+      if (currentBalance < expenseAmount) {
+        await pool.query('ROLLBACK');
+        return res.status(400).json({ error: 'Insufficient balance in the selected account.' });
+      }
+
+      // 2. Deduct from balance
+      await pool.query(
+        'UPDATE linked_accounts SET balance = balance - $1 WHERE id = $2',
+        [expenseAmount, linked_account_id]
+      );
+    }
     
+    // 3. Insert the new expense
     const queryText = `
-      INSERT INTO expenses (amount, category, description, date, user_id, receipt_url, merchant) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7) 
+      INSERT INTO expenses (amount, category, description, date, user_id, receipt_url, merchant, linked_account_id) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
       RETURNING *;
     `;
     
-    const values = [amount, category, description, date, user_id, finalReceiptUrl, merchant];
+    const values = [amount, category, description, date, user_id, finalReceiptUrl, merchant, linked_account_id || null];
     const result = await pool.query(queryText, values);
     
+    await pool.query('COMMIT');
     res.status(201).json(result.rows[0]);
   } catch (err) {
+    await pool.query('ROLLBACK');
     console.error(err);
     res.status(500).json({ error: err.message || 'Server error while saving expense.' });
   }
@@ -75,7 +103,11 @@ exports.getExpenses = async (req, res) => {
   try {
     const { user_id } = req.query;
     const result = await pool.query(
-      'SELECT * FROM expenses WHERE user_id = $1 AND deleted_at IS NULL ORDER BY date DESC, id DESC;',
+      `SELECT e.*, l.bank_name, l.account_type 
+       FROM expenses e 
+       LEFT JOIN linked_accounts l ON e.linked_account_id = l.id 
+       WHERE e.user_id = $1 AND e.deleted_at IS NULL 
+       ORDER BY e.date DESC, e.id DESC;`,
       [user_id]
     );
     res.json(result.rows);

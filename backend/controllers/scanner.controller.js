@@ -29,7 +29,7 @@ exports.scanImage = async (req, res) => {
 
   try {
     const base64Data = req.file.buffer.toString('base64');
-    const promptText = 'Analyze this image. Return a JSON object with strictly these keys: "is_valid" (boolean, true if the image is a receipt, a bill, a product, food, or anything purchasable. false if it is completely irrelevant like a plain wall, a random person\'s face, a selfie, or a landscape), "error_message" (string, if is_valid is false, provide a short friendly reason why it cannot be logged as an expense), "is_receipt" (boolean, true if it is a receipt or bill, false if it is just a picture of an item/product), "amount" (number, total amount or estimated price in local currency, 0 if unknown), "merchant" (string, the name of the store or brand, or infer one if not explicit), "category" (string, strictly ONE of: Food, Transport, Utilities, Entertainment, Shopping, Healthcare, Others), "description" (string, a single-sentence summary of the item or purchase), and "items" (an array of objects, each with "name" (string), "quantity" (number, merge duplicate items and sum their quantity), and "price" (number, total price for that quantity)). DO NOT wrap in markdown code blocks, just raw JSON.';
+    const promptText = 'Analyze this image. Return a JSON object with strictly these keys: "is_valid" (boolean, true if the image is a receipt, a bill, a product, food, or anything purchasable. false if it is completely irrelevant like a plain wall, a random person\'s face, a selfie, or a landscape), "error_message" (string, if is_valid is false, provide a short friendly reason why it cannot be logged as an expense), "is_receipt" (boolean, true if it is a receipt or bill, false if it is just a picture of an item/product), "amount" (number, total amount or estimated price in local currency, 0 if unknown), "merchant" (string, the name of the store or brand, or infer one if not explicit), "category" (string, strictly ONE of: Food, Transport, Utilities, Entertainment, Shopping, Healthcare, Others), "description" (string, a single-sentence summary of the item or purchase), "payment_method" (string, the name of the bank, card, wallet, or cash used to pay, leave empty if not explicitly stated), and "items" (an array of objects, each with "name" (string), "quantity" (number, merge duplicate items and sum their quantity), and "price" (number, total price for that quantity)). DO NOT wrap in markdown code blocks, just raw JSON.';
     
     let cleanedText = "";
 
@@ -88,6 +88,7 @@ exports.scanImage = async (req, res) => {
       merchant: parsed.merchant,
       category: parsed.category,
       description: parsed.description,
+      payment_method: parsed.payment_method || "",
       items: parsed.items || []
     });
   } catch (error) {
@@ -120,6 +121,7 @@ exports.parseVoiceLog = async (req, res) => {
       - "merchant" (string, the name of the store or person paid, leave empty if not mentioned)
       - "category" (string, choose from standard categories: Food, Transport, Utilities, Entertainment, or infer a logical custom one)
       - "description" (string, a brief 2-5 word summary of the expense)
+      - "payment_method" (string, the name of the bank, card, wallet, or cash used, leave empty if not mentioned)
       
       Transcript: "${req.body.transcript}"
     `;
@@ -157,7 +159,8 @@ exports.parseVoiceLog = async (req, res) => {
       amount: parsed.amount,
       merchant: parsed.merchant || "",
       category: parsed.category || "Food",
-      description: parsed.description || ""
+      description: parsed.description || "",
+      payment_method: parsed.payment_method || ""
     });
   } catch (error) {
     console.error("AI API Error in Voice Log:", error);

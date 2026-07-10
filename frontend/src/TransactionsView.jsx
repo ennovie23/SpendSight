@@ -50,6 +50,10 @@ function TransactionsView({ email, user_id }) {
   const [scanImagePreview, setScanImagePreview] = useState(null);
   const [scanFile, setScanFile] = useState(null);
   const [formReceiptUrl, setFormReceiptUrl] = useState("");
+  
+  // Payment method states
+  const [linkedAccounts, setLinkedAccounts] = useState([]);
+  const [selectedAccount, setSelectedAccount] = useState("");
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 768);
@@ -181,10 +185,26 @@ function TransactionsView({ email, user_id }) {
     }
   };
 
+  const fetchLinkedAccounts = async () => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/banks/accounts`);
+      if (response.ok) {
+        const data = await response.json();
+        setLinkedAccounts(data);
+        if (data.length > 0) {
+          setSelectedAccount(data[0].id);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch linked accounts:", err);
+    }
+  };
+
   // Sync data fetch on mount or state toggling
   useEffect(() => {
     setEditingId(null);
     clearForm();
+    fetchLinkedAccounts();
 
     if (viewTrash) {
       fetchTrash();
@@ -227,6 +247,18 @@ function TransactionsView({ email, user_id }) {
     setFormReceiptUrl("");
   };
 
+  const matchPaymentMethod = (paymentMethodName) => {
+    if (!paymentMethodName) return "";
+    const lower = paymentMethodName.toLowerCase();
+    const match = linkedAccounts.find(acc => acc.bank_name.toLowerCase().includes(lower) || lower.includes(acc.bank_name.toLowerCase()));
+    return match ? match.id : "";
+  };
+
+  const getFallbackAccountId = () => {
+    const cashAccount = linkedAccounts.find(acc => acc.bank_name.toLowerCase().includes("cash"));
+    return cashAccount ? cashAccount.id : selectedAccount;
+  };
+
   const handleImageUpload = async (event) => {
     const inputTarget = event.target;
     const file = inputTarget.files[0];
@@ -256,16 +288,37 @@ function TransactionsView({ email, user_id }) {
         
         if (data.is_receipt === false) {
           // Pre-fill manual form for objects
-          setAmount(data.amount || "");
-          setCategory(data.category || "Food");
-          setDescription(data.description || data.merchant || "");
-          setFormReceiptUrl(data.receipt_url || "");
-          
-          if (data.category && !categoriesList.includes(data.category)) {
-            setCategoriesList(prev => Array.from(new Set([...prev, data.category])));
+          if (!scanFile && !data.receipt_url) {
+            setAmount(data.amount || "");
+            setCategory(data.category || "Food");
+            setDescription(data.description || data.merchant || "");
+            setFormReceiptUrl(data.receipt_url || "");
+            
+            const detectedPayment = data.payment_method;
+            const autoAccount = matchPaymentMethod(detectedPayment);
+            const fallbackId = getFallbackAccountId();
+            if (autoAccount) {
+              setSelectedAccount(autoAccount);
+            } else if (detectedPayment) {
+              setSelectedAccount(fallbackId);
+              setModalConfig({
+                title: "Payment Method Not Linked",
+                message: `We detected "${detectedPayment}" as your payment method, but it is not linked in your Wallet yet. We've selected Cash for now. Please link it in the Wallet tab for accurate tracking.`,
+                onConfirm: null
+              });
+              setShowModal(true);
+            }
+            
+            if (data.category && !categoriesList.includes(data.category)) {
+              setCategoriesList(prev => Array.from(new Set([...prev, data.category])));
+            }
           }
         } else {
           // Show verification modal for receipts
+          const detectedPayment = data.payment_method;
+          const autoAccount = matchPaymentMethod(detectedPayment);
+          const fallbackId = getFallbackAccountId();
+          
           setScanResult({
             amount: data.amount || "",
             originalAmount: data.amount || 0,
@@ -273,8 +326,18 @@ function TransactionsView({ email, user_id }) {
             category: data.category || "Food",
             description: data.description || "",
             items: data.items || [],
-            receipt_url: data.receipt_url || ""
+            receipt_url: data.receipt_url || "",
+            linked_account_id: autoAccount || fallbackId
           });
+          
+          if (detectedPayment && !autoAccount) {
+            setModalConfig({
+              title: "Payment Method Not Linked",
+              message: `We detected "${detectedPayment}" as your payment method, but it is not linked in your Wallet yet. We've selected Cash for now. Please link it in the Wallet tab for accurate tracking.`,
+              onConfirm: null
+            });
+            setShowModal(true);
+          }
           
           if (data.category && !categoriesList.includes(data.category)) {
             setCategoriesList(prev => Array.from(new Set([...prev, data.category])));
@@ -359,16 +422,32 @@ function TransactionsView({ email, user_id }) {
           setFormReceiptUrl("");
           setScanFile(null);
           
+          const detectedPayment = data.payment_method;
+          const autoAccount = matchPaymentMethod(detectedPayment);
+          const fallbackId = getFallbackAccountId();
+          if (autoAccount) {
+            setSelectedAccount(autoAccount);
+          } else if (detectedPayment) {
+            setSelectedAccount(fallbackId);
+            setModalConfig({
+              title: "Payment Method Not Linked",
+              message: `We detected "${detectedPayment}" as your payment method, but it is not linked in your Wallet yet. We've selected Cash for now. Please link it in the Wallet tab for accurate tracking.`,
+              onConfirm: null
+            });
+            setShowModal(true);
+          } else {
+            setModalConfig({ 
+              title: "Success! 🎙️", 
+              message: "Your voice log was analyzed. The manual entry form has been prefilled for you to review and log!", 
+              onConfirm: null 
+            });
+            setShowModal(true);
+          }
+          
           if (data.category && !categoriesList.includes(data.category)) {
             setCategoriesList(prev => Array.from(new Set([...prev, data.category])));
           }
           
-          setModalConfig({ 
-            title: "Success! 🎙️", 
-            message: "Your voice log was analyzed. The manual entry form has been prefilled for you to review and log!", 
-            onConfirm: null 
-          });
-          setShowModal(true);
         } else {
           setModalConfig({ title: "Voice Log Failed", message: data.error || "Failed to process voice log.", onConfirm: null });
           setShowModal(true);
@@ -414,11 +493,18 @@ function TransactionsView({ email, user_id }) {
     try {
       const formData = new FormData();
       formData.append("amount", scanResult.amount);
-      formData.append("category", scanResult.category);
-      formData.append("description", scanResult.description || scanResult.merchant);
+      formData.append("category", scanResult.category === "Other" ? cleanAndFormatCategory(customCategory) : scanResult.category);
       formData.append("date", getTodayDateString());
+      formData.append("description", scanResult.description || "");
       formData.append("user_id", user_id);
       formData.append("merchant", scanResult.merchant || "");
+      
+      if (scanResult.linked_account_id) {
+        formData.append("linked_account_id", scanResult.linked_account_id);
+      } else if (selectedAccount) {
+        formData.append("linked_account_id", selectedAccount);
+      }
+      
       if (scanFile) formData.append("image", scanFile);
       if (scanResult.receipt_url) formData.append("receipt_url", scanResult.receipt_url);
 
@@ -469,19 +555,23 @@ function TransactionsView({ email, user_id }) {
         return;
       }
       if (!category) {
-        alert("Please select a category");
+        setModalConfig({ title: "Validation Error", message: "Please select a category", onConfirm: null });
+        setShowModal(true);
         return;
       }
       if (category === "Other" && !customCategory.trim()) {
-        alert("Please specify custom category name");
+        setModalConfig({ title: "Validation Error", message: "Please specify custom category name", onConfirm: null });
+        setShowModal(true);
         return;
       }
       if (!date) {
-        alert("Please select a date");
+        setModalConfig({ title: "Validation Error", message: "Please select a date", onConfirm: null });
+        setShowModal(true);
         return;
       }
       if (date > getTodayDateString()) {
-        alert("You cannot log expenses for future dates.");
+        setModalConfig({ title: "Validation Error", message: "You cannot log expenses for future dates.", onConfirm: null });
+        setShowModal(true);
         return;
       }
 
@@ -530,6 +620,7 @@ function TransactionsView({ email, user_id }) {
         formData.append("description", description || finalCategory);
         formData.append("date", date);
         formData.append("user_id", user_id);
+        if (selectedAccount) formData.append("linked_account_id", selectedAccount);
         if (formReceiptUrl) formData.append("receipt_url", formReceiptUrl);
         if (scanFile) formData.append("image", scanFile);
 
@@ -559,12 +650,22 @@ function TransactionsView({ email, user_id }) {
           setShowSuccessToast(true);
           setTimeout(() => setShowSuccessToast(false), 3000);
         } else {
-          alert("Failed to save expense in the database.");
+          const contentType = response.headers.get("content-type");
+          let errorMessage = "Failed to save expense in the database.";
+          if (contentType && contentType.includes("application/json")) {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorMessage;
+          } else {
+            errorMessage = await response.text();
+          }
+          setModalConfig({ title: "Failed to Save", message: errorMessage, onConfirm: null });
+          setShowModal(true);
         }
       }
     } catch (error) {
       console.error("Error processing expense:", error);
-      alert("Error processing expense. Please try again.");
+      setModalConfig({ title: "Error", message: "Error processing expense. Please try again.", onConfirm: null });
+      setShowModal(true);
     }
   };
 
@@ -1082,6 +1183,48 @@ function TransactionsView({ email, user_id }) {
               </div>
             </div>
 
+            {/* Payment Method selection */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              <label style={{ color: "var(--text-secondary)", fontSize: "14px", fontWeight: "500" }}>Payment Method</label>
+              <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                <div style={{ position: "absolute", left: "14px", pointerEvents: "none", color: "var(--text-secondary)", display: "flex" }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="2" y="5" width="20" height="14" rx="2" ry="2"/>
+                    <line x1="2" y1="10" x2="22" y2="10"/>
+                  </svg>
+                </div>
+                <select
+                  value={selectedAccount}
+                  onChange={(e) => setSelectedAccount(e.target.value)}
+                  disabled={viewTrash}
+                  style={{
+                    width: "100%",
+                    backgroundColor: "var(--bg-card-inner)",
+                    border: "1px solid var(--border-color)",
+                    borderRadius: "8px",
+                    padding: "12px 16px 12px 40px",
+                    color: "var(--text-primary)",
+                    fontSize: "15px",
+                    outline: "none",
+                    boxSizing: "border-box",
+                    appearance: "none",
+                    cursor: "pointer"
+                  }}
+                >
+                  {linkedAccounts.map((acc) => (
+                    <option key={acc.id} value={acc.id}>
+                      {acc.bank_name} - ₱{parseFloat(acc.balance).toLocaleString()}
+                    </option>
+                  ))}
+                </select>
+                <div style={{ position: "absolute", right: "14px", pointerEvents: "none", color: "var(--text-secondary)", display: "flex" }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </div>
+              </div>
+            </div>
+
             {/* Category selection */}
             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
               <label style={{ color: "var(--text-secondary)", fontSize: "14px", fontWeight: "500" }}>Category</label>
@@ -1391,9 +1534,10 @@ function TransactionsView({ email, user_id }) {
             <div style={{ minWidth: isMobile ? "100%" : "600px", display: "flex", flexDirection: "column" }}>
               {/* Table Header */}
               {!isMobile && (
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 80px", padding: "16px 24px", borderBottom: "1px solid var(--border-color)", color: "var(--text-secondary)", fontSize: "12px", fontWeight: "600", letterSpacing: "0.5px" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 80px", padding: "16px 24px", borderBottom: "1px solid var(--border-color)", color: "var(--text-secondary)", fontSize: "12px", fontWeight: "600", letterSpacing: "0.5px" }}>
                   <span>DATE</span>
                   <span>CATEGORY</span>
+                  <span>PAYMENT</span>
                   <span>AMOUNT</span>
                   <span style={{ textAlign: "right" }}>ACTION</span>
                 </div>
@@ -1441,6 +1585,9 @@ function TransactionsView({ email, user_id }) {
                               <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: styleData.dot }}></span>
                               {tx.category}
                             </span>
+                            <span style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
+                              via {tx.bank_name || 'Cash'}
+                            </span>
                           </div>
                           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "10px" }}>
                             <span style={{ fontSize: "16px", fontWeight: "bold", color: "var(--text-primary)", letterSpacing: "0.5px" }}>
@@ -1452,7 +1599,7 @@ function TransactionsView({ email, user_id }) {
                     }
                     
                     return (
-                      <div key={tx.id} onClick={(e) => { if (e.target.closest('button')) return; setReceiptPreview(tx); }} style={{ cursor: "pointer", display: "grid", gridTemplateColumns: "1fr 1fr 1fr 80px", alignItems: "center", padding: "16px 24px", borderBottom: "1px solid var(--border-color)", backgroundColor: isEditingThis ? "rgba(0, 216, 246, 0.08)" : rowBg, opacity: viewTrash && !tx.deleted_at ? 0.5 : 1, transition: "background-color 0.2s" }} onMouseEnter={(e) => {if(!isEditingThis) e.currentTarget.style.backgroundColor = "var(--bg-card-inner)"}} onMouseLeave={(e) => {if(!isEditingThis) e.currentTarget.style.backgroundColor = rowBg}}>
+                      <div key={tx.id} onClick={(e) => { if (e.target.closest('button')) return; setReceiptPreview(tx); }} style={{ cursor: "pointer", display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 80px", alignItems: "center", padding: "16px 24px", borderBottom: "1px solid var(--border-color)", backgroundColor: isEditingThis ? "rgba(0, 216, 246, 0.08)" : rowBg, opacity: viewTrash && !tx.deleted_at ? 0.5 : 1, transition: "background-color 0.2s" }} onMouseEnter={(e) => {if(!isEditingThis) e.currentTarget.style.backgroundColor = "var(--bg-card-inner)"}} onMouseLeave={(e) => {if(!isEditingThis) e.currentTarget.style.backgroundColor = rowBg}}>
                         
                         {/* Date */}
                         <span style={{ fontSize: "14px", color: "var(--text-secondary)" }}>
@@ -1478,6 +1625,11 @@ function TransactionsView({ email, user_id }) {
                             {tx.category}
                           </span>
                         </div>
+
+                        {/* Payment Method */}
+                        <span style={{ fontSize: "14px", color: "var(--text-secondary)" }}>
+                          {tx.bank_name || 'Cash'}
+                        </span>
 
                         {/* Amount */}
                         <span style={{ fontSize: "15px", fontWeight: "600", color: "var(--text-primary)" }}>
@@ -1768,6 +1920,21 @@ function TransactionsView({ email, user_id }) {
                   {categoriesList.map((cat, i) => <option key={i} value={cat}>{cat}</option>)}
                 </select>
               </div>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              <span style={{ fontSize: "12px", color: "var(--text-secondary)" }}>Payment Method</span>
+              <select
+                value={scanResult.linked_account_id || ""}
+                onChange={(e) => setScanResult({...scanResult, linked_account_id: e.target.value})}
+                style={{ width: "100%", backgroundColor: "var(--bg-app)", border: "1px solid var(--border-color)", color: "var(--text-primary)", padding: "10px 12px", borderRadius: "8px", fontSize: "14px", outline: "none" }}
+              >
+                {linkedAccounts.map((acc) => (
+                  <option key={acc.id} value={acc.id}>
+                    {acc.bank_name} - ₱{parseFloat(acc.balance).toLocaleString()}
+                  </option>
+                ))}
+              </select>
             </div>
             
             <button
@@ -2071,9 +2238,14 @@ function TransactionsView({ email, user_id }) {
                     </div>
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: isMobile ? "10px" : "12px", color: "var(--text-secondary)", marginBottom: "2px" }}>AMOUNT</div>
-                    <div style={{ fontSize: isMobile ? "18px" : "24px", color: "#00d8f6", fontWeight: "700" }}>₱{parseFloat(receiptPreview.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                    <div style={{ fontSize: isMobile ? "10px" : "12px", color: "var(--text-secondary)", marginBottom: "2px" }}>PAYMENT MODE</div>
+                    <div style={{ fontSize: isMobile ? "12px" : "16px", color: "var(--text-primary)", fontWeight: "500" }}>{receiptPreview.bank_name || 'Cash'}</div>
                   </div>
+                </div>
+
+                <div style={{ marginTop: isMobile ? "8px" : "12px" }}>
+                  <div style={{ fontSize: isMobile ? "10px" : "12px", color: "var(--text-secondary)", marginBottom: "2px" }}>AMOUNT</div>
+                  <div style={{ fontSize: isMobile ? "18px" : "24px", color: "#00d8f6", fontWeight: "700" }}>₱{parseFloat(receiptPreview.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                 </div>
                 
                 {receiptPreview.description && receiptPreview.description !== receiptPreview.merchant && (
