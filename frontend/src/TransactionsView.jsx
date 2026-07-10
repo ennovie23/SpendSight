@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 
 // Helper to fetch current date in YYYY-MM-DD format
 const getTodayDateString = () => {
@@ -69,6 +70,7 @@ function TransactionsView({ email, user_id }) {
   // Modal confirmation states
   const [showModal, setShowModal] = useState(false);
   const [modalConfig, setModalConfig] = useState({ title: "", message: "", onConfirm: null });
+  const [actionModalTx, setActionModalTx] = useState(null); // Mobile action menu modal
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   
   // Draggable FAB state
@@ -1018,6 +1020,22 @@ function TransactionsView({ email, user_id }) {
         </div>
       )}
 
+      {/* Invisible overlay to catch clicks outside the FAB menu */}
+      {isMobile && !viewTrash && showScannerOptions && (
+        <div 
+          onClick={() => setShowScannerOptions(false)}
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 899,
+            backgroundColor: "transparent"
+          }}
+        />
+      )}
+
       {/* Floating Action Buttons for Mobile */}
       {isMobile && !viewTrash && (
         <div style={{
@@ -1544,9 +1562,18 @@ function TransactionsView({ email, user_id }) {
 
           <div style={{ overflowX: "auto" }}>
             <div style={{ minWidth: isMobile ? "100%" : "600px", display: "flex", flexDirection: "column" }}>
-              {/* Table Header Removed for unified card layout */}
+              {/* Table Header */}
+              {!isMobile && (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 80px", padding: "16px 24px", borderBottom: "1px solid var(--border-color)", color: "var(--text-secondary)", fontSize: "12px", fontWeight: "600", letterSpacing: "0.5px" }}>
+                  <span>DATE</span>
+                  <span>CATEGORY</span>
+                  <span>PAYMENT</span>
+                  <span>AMOUNT</span>
+                  <span style={{ textAlign: "right" }}>ACTION</span>
+                </div>
+              )}
 
-              <div style={{ overflowY: "auto", maxHeight: "480px", display: "flex", flexDirection: "column", gap: "12px", padding: isMobile ? "4px" : "0" }}>
+              <div style={{ overflowY: "auto", maxHeight: "480px", display: "flex", flexDirection: "column", gap: isMobile ? "12px" : "0", padding: isMobile ? "4px" : "0" }}>
                 {displayedTransactions.length === 0 ? (
                   <div style={{ padding: "32px 16px", textAlign: "center", color: "var(--text-secondary)", fontSize: "14px" }}>
                     {viewTrash ? "Trash bin is empty." : "No transactions logged yet."}
@@ -1557,21 +1584,69 @@ function TransactionsView({ email, user_id }) {
                     const isEditingThis = editingId === tx.id;
                     const rowBg = index % 2 === 0 ? "transparent" : "rgba(255, 255, 255, 0.02)";
 
+                    const actionButtons = viewTrash ? (
+                      <>
+                        <button onClick={() => handleRestoreClick(tx.id)} title="Restore" style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-secondary)" }} onMouseEnter={(e) => e.currentTarget.style.color = "#00d8f6"} onMouseLeave={(e) => e.currentTarget.style.color = "var(--text-secondary)"}>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 2v6h6M21.5 22v-6h-6"/><path d="M22 11.5A10 10 0 0 0 9.5 2.5M2 12.5a10 10 0 0 0 12.5 9"/></svg>
+                        </button>
+                        <button onClick={() => handlePurgeClick(tx.id)} title="Delete Permanently" style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-secondary)" }} onMouseEnter={(e) => e.currentTarget.style.color = "#FF5252"} onMouseLeave={(e) => e.currentTarget.style.color = "var(--text-secondary)"}>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button onClick={() => setReceiptPreview(tx)} title="View Details" style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-secondary)" }} onMouseEnter={(e) => e.currentTarget.style.color = "#00d8f6"} onMouseLeave={(e) => e.currentTarget.style.color = "var(--text-secondary)"}>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                        <button onClick={() => handleEditClick(tx)} title="Edit Expense" style={{ background: "none", border: "none", cursor: "pointer", color: isEditingThis ? "#00d8f6" : "var(--text-secondary)" }} onMouseEnter={(e) => e.currentTarget.style.color = "#00d8f6"} onMouseLeave={(e) => e.currentTarget.style.color = isEditingThis ? "#00d8f6" : "var(--text-secondary)"}>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                        </button>
+                        <button onClick={() => handleDeleteClick(tx.id)} title="Move to Trash" style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-secondary)" }} onMouseEnter={(e) => e.currentTarget.style.color = "#FF5252"} onMouseLeave={(e) => e.currentTarget.style.color = "var(--text-secondary)"}>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                        </button>
+                      </>
+                    );
+
+                    if (isMobile) {
+                      return (
+                        <div key={tx.id} onClick={() => setActionModalTx(tx)} style={{ cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderRadius: "12px", backgroundColor: isEditingThis ? "rgba(0, 216, 246, 0.08)" : "rgba(255, 255, 255, 0.02)", border: "1px solid var(--border-color)", opacity: viewTrash && !tx.deleted_at ? 0.5 : 1, transition: "background-color 0.2s" }} onMouseEnter={(e) => {if(!isEditingThis) e.currentTarget.style.backgroundColor = "var(--bg-card-inner)"}} onMouseLeave={(e) => {if(!isEditingThis) e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.02)"}}>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                            <span style={{ fontSize: "13px", color: "var(--text-secondary)" }}>
+                              {tx.date ? new Date(tx.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}
+                            </span>
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", backgroundColor: styleData.bg, color: styleData.color, padding: "4px 10px", borderRadius: "12px", fontSize: "12px", fontWeight: "bold", width: "fit-content" }}>
+                              <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: styleData.dot }}></span>
+                              {tx.category}
+                            </span>
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+                            <span style={{ fontSize: "16px", fontWeight: "bold", color: "var(--text-primary)", letterSpacing: "0.5px" }}>
+                              ₱{tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    }
+
                     return (
-                      <div key={tx.id} onClick={() => setReceiptPreview(tx)} style={{ cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderRadius: "12px", backgroundColor: isEditingThis ? "rgba(0, 216, 246, 0.08)" : "rgba(255, 255, 255, 0.02)", border: "1px solid var(--border-color)", opacity: viewTrash && !tx.deleted_at ? 0.5 : 1, transition: "background-color 0.2s" }} onMouseEnter={(e) => {if(!isEditingThis) e.currentTarget.style.backgroundColor = "var(--bg-card-inner)"}} onMouseLeave={(e) => {if(!isEditingThis) e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.02)"}}>
-                        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                          <span style={{ fontSize: "13px", color: "var(--text-secondary)" }}>
-                            {tx.date ? new Date(tx.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}
-                          </span>
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", backgroundColor: styleData.bg, color: styleData.color, padding: "4px 10px", borderRadius: "12px", fontSize: "12px", fontWeight: "bold", width: "fit-content" }}>
+                      <div key={tx.id} onClick={(e) => { if (e.target.closest('button')) return; setReceiptPreview(tx); }} style={{ cursor: "pointer", display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 80px", alignItems: "center", padding: "16px 24px", borderBottom: "1px solid var(--border-color)", backgroundColor: isEditingThis ? "rgba(0, 216, 246, 0.08)" : rowBg, opacity: viewTrash && !tx.deleted_at ? 0.5 : 1, transition: "background-color 0.2s" }} onMouseEnter={(e) => {if(!isEditingThis) e.currentTarget.style.backgroundColor = "var(--bg-card-inner)"}} onMouseLeave={(e) => {if(!isEditingThis) e.currentTarget.style.backgroundColor = rowBg}}>
+                        <span style={{ fontSize: "14px", color: "var(--text-secondary)" }}>
+                          {tx.date ? new Date(tx.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}
+                        </span>
+                        <div style={{ display: "flex", alignItems: "center" }}>
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", backgroundColor: styleData.bg, color: styleData.color, padding: "4px 10px", borderRadius: "12px", fontSize: "12px", fontWeight: "bold" }}>
                             <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: styleData.dot }}></span>
                             {tx.category}
                           </span>
                         </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-                          <span style={{ fontSize: "16px", fontWeight: "bold", color: "var(--text-primary)", letterSpacing: "0.5px" }}>
-                            ₱{tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </span>
+                        <span style={{ fontSize: "14px", color: "var(--text-secondary)" }}>
+                          {tx.bank_name || 'Cash'}
+                        </span>
+                        <span style={{ fontSize: "15px", fontWeight: "600", color: "var(--text-primary)" }}>
+                          ₱{tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                        <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", opacity: isEditingThis ? 1 : 0.6, transition: "opacity 0.2s" }} onMouseEnter={(e) => e.currentTarget.style.opacity = 1} onMouseLeave={(e) => e.currentTarget.style.opacity = isEditingThis ? 1 : 0.6}>
+                          {actionButtons}
                         </div>
                       </div>
                     );
@@ -2021,11 +2096,18 @@ function TransactionsView({ email, user_id }) {
       )}
 
 
-      {receiptPreview && (
-        <div style={{
-          position: "fixed",
-          top: isMobile ? "57px" : 0,
-          left: 0,
+      {receiptPreview && createPortal(
+        <>
+          {isMobile && (
+            <div 
+              style={{ position: "fixed", top: 0, left: 0, right: 0, height: "57px", zIndex: 3000, backgroundColor: "transparent", cursor: "default" }}
+              onClick={(e) => e.stopPropagation()}
+            />
+          )}
+          <div style={{
+            position: "fixed",
+            top: isMobile ? "57px" : 0,
+            left: 0,
           right: 0,
           bottom: 0,
           backgroundColor: "rgba(0,0,0,0.85)",
@@ -2105,52 +2187,15 @@ function TransactionsView({ email, user_id }) {
                   </div>
                 )}
                 
-                {/* Actions */}
-                <div style={{ borderTop: "1px solid var(--border-color)", paddingTop: "16px", display: "flex", gap: "12px", marginTop: "auto" }}>
-                  {!viewTrash ? (
-                    <>
-                      <button 
-                        onClick={() => { handleEditClick(receiptPreview); setReceiptPreview(null); }} 
-                        style={{ flex: 1, padding: "12px", backgroundColor: "rgba(0, 216, 246, 0.1)", border: "1px solid rgba(0, 216, 246, 0.2)", borderRadius: "10px", color: "#00d8f6", fontSize: "14px", fontWeight: "600", cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center", gap: "6px" }}
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                        Edit
-                      </button>
-                      <button 
-                        onClick={() => { handleDeleteClick(receiptPreview.id); setReceiptPreview(null); }} 
-                        style={{ flex: 1, padding: "12px", backgroundColor: "rgba(255, 82, 82, 0.1)", border: "1px solid rgba(255, 82, 82, 0.2)", borderRadius: "10px", color: "#FF5252", fontSize: "14px", fontWeight: "600", cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center", gap: "6px" }}
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                        Delete
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button 
-                        onClick={() => { handleRestoreClick(receiptPreview.id); setReceiptPreview(null); }} 
-                        style={{ flex: 1, padding: "12px", backgroundColor: "rgba(0, 216, 246, 0.1)", border: "1px solid rgba(0, 216, 246, 0.2)", borderRadius: "10px", color: "#00d8f6", fontSize: "14px", fontWeight: "600", cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center", gap: "6px" }}
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 2v6h6M21.5 22v-6h-6"/><path d="M22 11.5A10 10 0 0 0 9.5 2.5M2 12.5a10 10 0 0 0 12.5 9"/></svg>
-                        Restore
-                      </button>
-                      <button 
-                        onClick={() => { handlePurgeClick(receiptPreview.id); setReceiptPreview(null); }} 
-                        style={{ flex: 1, padding: "12px", backgroundColor: "rgba(255, 82, 82, 0.1)", border: "1px solid rgba(255, 82, 82, 0.2)", borderRadius: "10px", color: "#FF5252", fontSize: "14px", fontWeight: "600", cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center", gap: "6px" }}
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
-                        Purge
-                      </button>
-                    </>
-                  )}
-                </div>
               </div>
             </div>
           </div>
         </div>
-      )}
+        </>
+      , document.body)}
 
       {/* Fullscreen Photo View */}
-      {receiptPreview && photoFullscreen && (
+      {receiptPreview && photoFullscreen && createPortal(
         <div 
           onClick={() => setPhotoFullscreen(false)}
           style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "#000", zIndex: 3000, display: "flex", alignItems: "center", justifyContent: "center" }}
@@ -2168,7 +2213,92 @@ function TransactionsView({ email, user_id }) {
             onClick={(e) => e.stopPropagation()}
           />
         </div>
-      )}
+      , document.body)}
+
+      {/* Mobile Action Menu Modal */}
+      {actionModalTx && createPortal(
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: "rgba(0,0,0,0.7)",
+          display: "flex",
+          alignItems: "flex-end",
+          zIndex: 2500,
+          backdropFilter: "blur(2px)",
+        }} onClick={() => setActionModalTx(null)}>
+          <div style={{
+            width: "100%",
+            backgroundColor: "var(--bg-card)",
+            borderTopLeftRadius: "24px",
+            borderTopRightRadius: "24px",
+            padding: "24px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "16px",
+            borderTop: "1px solid var(--border-color)",
+            boxShadow: "0 -10px 40px rgba(0,0,0,0.5)"
+          }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ width: "40px", height: "4px", backgroundColor: "var(--border-color)", borderRadius: "2px", margin: "0 auto -8px" }} />
+            <h3 style={{ margin: "8px 0 16px 0", fontSize: "18px", color: "var(--text-primary)", textAlign: "center" }}>Transaction Options</h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              <button 
+                onClick={() => { setReceiptPreview(actionModalTx); setActionModalTx(null); }} 
+                style={{ padding: "16px", backgroundColor: "var(--bg-app)", border: "1px solid var(--border-color)", borderRadius: "12px", color: "var(--text-primary)", fontSize: "16px", fontWeight: "600", cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center", gap: "8px" }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                View Details
+              </button>
+              
+              {!viewTrash ? (
+                <>
+                  <button 
+                    onClick={() => { handleEditClick(actionModalTx); setActionModalTx(null); }} 
+                    style={{ padding: "16px", backgroundColor: "var(--bg-app)", border: "1px solid var(--border-color)", borderRadius: "12px", color: "#00d8f6", fontSize: "16px", fontWeight: "600", cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center", gap: "8px" }}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    Edit Form
+                  </button>
+                  <button 
+                    onClick={() => { handleDeleteClick(actionModalTx.id); setActionModalTx(null); }} 
+                    style={{ padding: "16px", backgroundColor: "rgba(255, 82, 82, 0.1)", border: "1px solid rgba(255, 82, 82, 0.2)", borderRadius: "12px", color: "#FF5252", fontSize: "16px", fontWeight: "600", cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center", gap: "8px" }}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    Move to Trash
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button 
+                    onClick={() => { handleRestoreClick(actionModalTx.id); setActionModalTx(null); }} 
+                    style={{ padding: "16px", backgroundColor: "rgba(0, 216, 246, 0.1)", border: "1px solid rgba(0, 216, 246, 0.2)", borderRadius: "12px", color: "#00d8f6", fontSize: "16px", fontWeight: "600", cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center", gap: "8px" }}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 2v6h6M21.5 22v-6h-6"/><path d="M22 11.5A10 10 0 0 0 9.5 2.5M2 12.5a10 10 0 0 0 12.5 9"/></svg>
+                    Restore
+                  </button>
+                  <button 
+                    onClick={() => { handlePurgeClick(actionModalTx.id); setActionModalTx(null); }} 
+                    style={{ padding: "16px", backgroundColor: "rgba(255, 82, 82, 0.1)", border: "1px solid rgba(255, 82, 82, 0.2)", borderRadius: "12px", color: "#FF5252", fontSize: "16px", fontWeight: "600", cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center", gap: "8px" }}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                    Delete Permanently
+                  </button>
+                </>
+              )}
+              
+              <button 
+                onClick={() => setActionModalTx(null)} 
+                style={{ padding: "16px", backgroundColor: "transparent", border: "1px solid var(--border-color)", borderRadius: "12px", color: "var(--text-secondary)", fontSize: "16px", fontWeight: "600", cursor: "pointer", marginTop: "4px" }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      , document.body)}
+
     </div>
   );
 }

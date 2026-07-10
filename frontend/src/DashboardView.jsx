@@ -124,6 +124,66 @@ function DashboardView({ email, user_id }) {
   const highestCategory = analyticsData.highest_category?.name || "None";
   const highestPercent = analyticsData.highest_category?.percentage || 0;
 
+  // ML Budget Health Processing
+  const mlHealth = analyticsData.weekly_budget_health || {
+    baseline_budget: 0,
+    current_spend: 0,
+    predicted_spend: 0,
+    status: "On Track"
+  };
+
+  const mlBudgetLeft = Math.max(0, mlHealth.baseline_budget - mlHealth.current_spend);
+  const mlBudgetProgress = mlHealth.baseline_budget > 0 
+    ? Math.min((mlHealth.current_spend / mlHealth.baseline_budget) * 100, 100) 
+    : 0;
+
+  let mlHealthColor = "#00E676"; // On Track
+  let mlHealthText = "Stamina remaining";
+  if (mlHealth.status === "At Risk") {
+    mlHealthColor = "#FFEB3B";
+    mlHealthText = "Approaching limits";
+  }
+  if (mlHealth.status === "Over Budget") {
+    mlHealthColor = "#FF5252";
+    mlHealthText = "Projected to overspend";
+  }
+
+
+
+  // ML Monthly Forecast Processing
+  const monthlyForecast = analyticsData.monthly_forecast || { history: [], forecast: [] };
+  const historyData = monthlyForecast.history || [];
+  const forecastData = monthlyForecast.forecast || [];
+  
+  let chartMaxY = 12000;
+  let chartDays = 30;
+  
+  if (historyData.length > 0 || forecastData.length > 0) {
+    const allSpends = [...historyData, ...forecastData].map(d => d.spend || 0);
+    const maxSpend = Math.max(...allSpends, 0);
+    chartMaxY = Math.ceil(maxSpend / 1000) * 1000;
+    if (chartMaxY === 0) chartMaxY = 12000;
+    
+    const allDays = [...historyData, ...forecastData].map(d => d.day || 1);
+    chartDays = Math.max(...allDays, 30);
+  }
+  
+  const yLabels = [chartMaxY, chartMaxY * 0.75, chartMaxY * 0.50, chartMaxY * 0.25, 0]
+    .map(val => val >= 1000 ? `₱${(val/1000).toFixed(val % 1000 === 0 ? 0 : 1)}k` : `₱${val}`);
+
+  const getChartX = (day) => (day / chartDays) * 300;
+  const getChartY = (spend) => 120 - ((spend / chartMaxY) * 120);
+
+  const generateChartPath = (data) => {
+    if (!data || data.length === 0) return "";
+    return data.map((d, i) => `${i === 0 ? 'M' : 'L'} ${getChartX(d.day)} ${getChartY(d.spend)}`).join(" ");
+  };
+
+  const historyPath = generateChartPath(historyData);
+  const forecastPath = generateChartPath(historyData.length > 0 && forecastData.length > 0 
+    ? [historyData[historyData.length - 1], ...forecastData] 
+    : forecastData);
+
   const breakdownList = (() => {
     const rawBreakdown = analyticsData.spending_breakdown || {};
     const categories = Object.keys(rawBreakdown);
@@ -437,29 +497,46 @@ function DashboardView({ email, user_id }) {
       </div>
 
       {/* Weekly Budget Health Card */}
-      <div style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "16px", padding: isMobile ? "20px" : "24px 28px", marginBottom: "32px", position: "relative" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <div style={{ backgroundColor: "rgba(0, 230, 118, 0.1)", borderRadius: "8px", padding: "8px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00E676" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <div style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "12px", padding: "16px 20px", marginBottom: "24px", position: "relative", overflow: "hidden" }}>
+        
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <div style={{ backgroundColor: `${mlHealthColor}20`, borderRadius: "6px", padding: "6px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={mlHealthColor} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="2" y="6" width="20" height="12" rx="2" ry="2" />
                 <line x1="22" y1="12" x2="22" y2="12" />
               </svg>
             </div>
             <div style={{ textAlign: "left" }}>
-              <h3 style={{ fontSize: "16px", fontWeight: "700", color: "var(--text-primary)", margin: "0 0 4px 0" }}>Weekly Budget Health</h3>
-              <span style={{ fontSize: "13px", color: "var(--text-secondary)" }}>Stamina remaining</span>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <h3 style={{ fontSize: "14px", fontWeight: "700", color: "var(--text-primary)", margin: 0, whiteSpace: "nowrap" }}>Weekly Budget</h3>
+                {/* AI Badge */}
+                <div style={{ backgroundColor: 'rgba(0, 216, 246, 0.1)', color: '#00d8f6', padding: '2px 4px', borderRadius: '4px', fontSize: '9px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                   <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                   AI
+                </div>
+              </div>
+              <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginTop: "2px", whiteSpace: "nowrap" }}>{mlHealthText}</div>
             </div>
           </div>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: "18px", fontWeight: "800", color: "var(--text-primary)" }}>₱375</div>
-            <div style={{ fontSize: "13px", color: "var(--text-secondary)" }}>left of ₱3,500</div>
+          <div style={{ textAlign: "right", paddingLeft: "10px" }}>
+            <div style={{ fontSize: "15px", fontWeight: "800", color: "var(--text-primary)", marginBottom: "2px" }}>
+              ₱{parseFloat(mlBudgetLeft).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+            </div>
+            <div style={{ fontSize: "10px", color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
+              left of ₱{parseFloat(mlHealth.baseline_budget).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+            </div>
           </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-          <div style={{ flexGrow: 1, height: "10px", backgroundColor: "var(--bg-card-inner)", borderRadius: "5px", overflow: "hidden" }}>
-            <div style={{ width: "89%", height: "100%", backgroundColor: "#FFEB3B", borderRadius: "5px" }}></div>
+        
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div style={{ flexGrow: 1, height: "6px", backgroundColor: "var(--bg-card-inner)", borderRadius: "3px", overflow: "hidden" }}>
+            <div style={{ width: `${mlBudgetProgress}%`, height: "100%", backgroundColor: mlHealthColor, borderRadius: "3px", transition: "width 0.5s ease-out, background-color 0.5s ease-out" }}></div>
           </div>
+        </div>
+        
+        <div style={{ fontSize: "10px", color: "var(--text-secondary)", marginTop: "8px", textAlign: "right" }}>
+           Projected: <strong style={{ color: "var(--text-primary)" }}>₱{parseFloat(mlHealth.predicted_spend).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</strong>
         </div>
       </div>
 
@@ -501,12 +578,12 @@ function DashboardView({ email, user_id }) {
             </div>
 
             {/* Color Legend */}
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "12px 24px", textAlign: "left" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 12px", textAlign: "left", width: "100%", marginTop: isMobile ? "12px" : "0" }}>
               {breakdownList.map((item, idx) => (
-                <div key={idx} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <span style={{ width: "10px", height: "10px", borderRadius: "50%", backgroundColor: item.color }}></span>
-                  <span style={{ fontSize: "14px", color: item.percent > 0 ? "var(--text-primary)" : "var(--text-secondary)", fontWeight: item.percent > 0 ? "bold" : "normal" }}>
-                    {item.name} ({item.percent === 0 && item.amount > 0 ? "<0.01" : item.percent.toFixed(2)}%)
+                <div key={idx} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <span style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: item.color, flexShrink: 0 }}></span>
+                  <span style={{ fontSize: "11px", color: item.percent > 0 ? "var(--text-primary)" : "var(--text-secondary)", fontWeight: item.percent > 0 ? "bold" : "normal", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {item.name} ({item.percent === 0 && item.amount > 0 ? "<0.01" : item.percent.toFixed(1)}%)
                   </span>
                 </div>
               ))}
@@ -528,43 +605,36 @@ function DashboardView({ email, user_id }) {
           </div>
 
           <div style={{ position: "relative", width: "100%", height: "240px", boxSizing: "border-box", paddingLeft: "40px", paddingBottom: "24px" }}>
-            <svg width="100%" height="100%" viewBox="0 0 300 120" preserveAspectRatio="none">
+            <svg width="100%" height="100%" viewBox="0 0 300 120" preserveAspectRatio="none" style={{ overflow: 'visible' }}>
               {/* Grid Lines */}
               {[120, 90, 60, 30, 0].map((y, i) => (
                 <line key={i} x1="0" y1={y} x2="300" y2={y} stroke="var(--bg-card-inner)" strokeWidth="1" strokeDasharray="4 4" />
               ))}
               
               {/* Solid Line (Past) */}
-              <path d="M 0 110 L 50 95 L 100 80 L 150 65" fill="none" stroke="#00d8f6" strokeWidth="3" />
+              {historyPath && <path d={historyPath} fill="none" stroke="#00d8f6" strokeWidth="2" />}
+              
               {/* Dotted Line (Forecast) */}
-              <path d="M 150 65 L 200 45 L 250 25 L 300 10" fill="none" stroke="#7928CA" strokeWidth="3" strokeDasharray="6 6" />
+              {forecastPath && <path d={forecastPath} fill="none" stroke="#7928CA" strokeWidth="2" strokeDasharray="4 4" />}
 
-              {/* Data points */}
-              {[
-                { x: 0, y: 110 }, { x: 50, y: 95 }, { x: 100, y: 80 }, { x: 150, y: 65 }
-              ].map((p, i) => (
-                <circle key={i} cx={p.x} cy={p.y} r="4" fill="var(--bg-card)" stroke="#00d8f6" strokeWidth="2.5" />
+              {/* Data points for history */}
+              {historyData.map((p, i) => (
+                <circle key={`hist-${i}`} cx={getChartX(p.day)} cy={getChartY(p.spend)} r="2.5" fill="var(--bg-card)" stroke="#00d8f6" strokeWidth="2" />
               ))}
             </svg>
 
             {/* Y-axis labels */}
             <div style={{ position: "absolute", left: "0", top: "0", height: "calc(100% - 24px)", display: "flex", flexDirection: "column", justifyContent: "space-between", color: "var(--text-secondary)", fontSize: "11px" }}>
-              <span style={{ transform: "translateY(-50%)" }}>₱12k</span>
-              <span style={{ transform: "translateY(-50%)" }}>₱9k</span>
-              <span style={{ transform: "translateY(-50%)" }}>₱6k</span>
-              <span style={{ transform: "translateY(-50%)" }}>₱3k</span>
-              <span style={{ transform: "translateY(-50%)" }}>₱0k</span>
+              {yLabels.map((label, i) => (
+                <span key={i} style={{ transform: "translateY(-50%)" }}>{label}</span>
+              ))}
             </div>
 
             {/* X-axis labels */}
             <div style={{ position: "absolute", left: "40px", bottom: "0", width: "calc(100% - 40px)", display: "flex", justifyContent: "space-between", color: "var(--text-secondary)", fontSize: "11px" }}>
-              <span>1</span>
-              <span>5</span>
-              <span>10</span>
-              <span>15</span>
-              <span>20</span>
-              <span>25</span>
-              <span>30</span>
+              {[1, 5, 10, 15, 20, 25, chartDays].map((day, i) => (
+                <span key={i} style={{ position: 'absolute', left: `${(day / chartDays) * 100}%`, transform: 'translateX(-50%)' }}>{day}</span>
+              ))}
             </div>
           </div>
         </div>

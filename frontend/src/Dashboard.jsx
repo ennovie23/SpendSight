@@ -20,8 +20,9 @@ function Dashboard({
   const [activeTab, setActiveTab] = useState(
     () => localStorage.getItem("spendsight_activeTab") || "dashboard",
   );
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [_isCollapsed, setIsCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  const isCollapsed = _isCollapsed && !isMobile;
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
@@ -868,6 +869,8 @@ function Dashboard({
             overflowY: "auto",
             overflowX: "hidden",
             transition: "background-color 0.3s ease",
+            position: "relative",
+            zIndex: 100,
           }}
         >
           <div style={{ padding: isMobile && (activeTab === "assistant" || activeTab === "photos") ? "0" : isMobile ? "24px 20px 0 20px" : "50px 60px 0 60px", minHeight: "100%", boxSizing: "border-box", display: "flex", flexDirection: "column" }}>

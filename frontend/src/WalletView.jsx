@@ -62,6 +62,7 @@ const WalletView = () => {
       display: "flex",
       flexDirection: "column",
       gap: "32px",
+      width: "100%",
       maxWidth: "1000px",
       margin: "0 auto"
     }}>

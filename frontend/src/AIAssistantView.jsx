@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 
 function AIAssistantView() {
   const [sessions, setSessions] = useState([]);
@@ -587,7 +588,7 @@ function AIAssistantView() {
       </div>
 
       {/* Delete Confirmation Modal */}
-      {sessionToDelete && (
+      {sessionToDelete && createPortal(
         <div style={{
           position: "fixed",
           top: 0, left: 0, right: 0, bottom: 0,
@@ -596,33 +597,41 @@ function AIAssistantView() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          zIndex: 1000
-        }}>
+          zIndex: 3000
+        }} onClick={() => setSessionToDelete(null)}>
           <div style={{
             backgroundColor: "var(--bg-card)",
-            padding: "32px",
+            padding: "24px",
             borderRadius: "16px",
             border: "1px solid var(--border-color)",
             width: "90%",
-            maxWidth: "400px",
-            boxShadow: "0 24px 48px rgba(0, 0, 0, 0.5)"
-          }}>
-            <h3 style={{ margin: "0 0 16px 0", color: "var(--text-primary)", fontSize: "20px" }}>Delete Chat</h3>
-            <p style={{ margin: "0 0 24px 0", color: "var(--text-secondary)", lineHeight: "1.5" }}>
+            maxWidth: "340px",
+            boxShadow: "0 24px 48px rgba(0, 0, 0, 0.5)",
+            textAlign: "center"
+          }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: "16px" }}>
+              <div style={{ width: "48px", height: "48px", borderRadius: "50%", backgroundColor: "rgba(255, 69, 58, 0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ff453a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              </div>
+            </div>
+            <h3 style={{ margin: "0 0 12px 0", color: "var(--text-primary)", fontSize: "18px", fontWeight: "600" }}>Delete Chat</h3>
+            <p style={{ margin: "0 0 24px 0", color: "var(--text-secondary)", fontSize: "14px", lineHeight: "1.5" }}>
               Are you sure you want to permanently delete this chat history? This action cannot be undone.
             </p>
-            <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
+            <div style={{ display: "flex", gap: "12px" }}>
               <button 
                 onClick={() => setSessionToDelete(null)}
                 disabled={isDeleting}
                 style={{
-                  padding: "12px 24px",
+                  flex: 1,
+                  padding: "12px",
                   borderRadius: "12px",
                   border: "1px solid var(--border-color)",
                   backgroundColor: "transparent",
                   color: "var(--text-primary)",
                   cursor: isDeleting ? "default" : "pointer",
                   fontWeight: "600",
+                  fontSize: "14px",
                   opacity: isDeleting ? 0.5 : 1
                 }}
               >
@@ -632,13 +641,15 @@ function AIAssistantView() {
                 onClick={confirmDeleteSession}
                 disabled={isDeleting}
                 style={{
-                  padding: "12px 24px",
+                  flex: 1,
+                  padding: "12px",
                   borderRadius: "12px",
                   border: "none",
                   backgroundColor: "rgba(255, 69, 58, 0.1)",
                   color: "#ff453a",
                   cursor: isDeleting ? "default" : "pointer",
                   fontWeight: "600",
+                  fontSize: "14px",
                   opacity: isDeleting ? 0.5 : 1
                 }}
               >
@@ -647,7 +658,7 @@ function AIAssistantView() {
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
     </div>
   );
 }
