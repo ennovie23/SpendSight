@@ -10,7 +10,7 @@ const banksList = [
   { id: 'gotyme', name: 'GoTyme Bank', type: 'Savings', color: '#0055FF', logo: '🔵' }
 ];
 
-export default function BankLinkModal({ isOpen, onClose, onLinkSuccess }) {
+export default function BankLinkModal({ isOpen, onClose, onLinkSuccess, user_id }) {
   const [step, setStep] = useState(1); // 1: Select Bank, 2: Enter Initial Balance, 3: Loading
   const [selectedBank, setSelectedBank] = useState(null);
   const [amount, setAmount] = useState('');
@@ -50,7 +50,8 @@ export default function BankLinkModal({ isOpen, onClose, onLinkSuccess }) {
         body: JSON.stringify({ 
           bank_name: selectedBank.name,
           account_type: selectedBank.type,
-          balance: numericAmount
+          balance: numericAmount,
+          user_id: user_id
         })
       });
 

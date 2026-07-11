@@ -5,14 +5,13 @@ const pool = require('../config/db');
 // Securely link a new mock bank account
 router.post('/link', async (req, res) => {
   try {
-    const { bank_name, account_type, balance } = req.body;
+    const { bank_name, account_type, balance, user_id } = req.body;
     
     // In a real Open Banking flow, we would receive a token here, not the balance.
     // For this Mock flow, we generate a fake token and save the mocked balance.
     
-    const userResult = await pool.query('SELECT id FROM users LIMIT 1');
-    if (userResult.rows.length === 0) return res.status(404).json({ error: 'User not found' });
-    const userId = userResult.rows[0].id;
+    if (!user_id) return res.status(400).json({ error: 'User ID is required' });
+    const userId = user_id;
     
     // Check if the user already linked this bank
     const existingCheck = await pool.query(
@@ -49,9 +48,9 @@ router.post('/link', async (req, res) => {
 // Fetch all linked accounts for a user
 router.get('/accounts', async (req, res) => {
   try {
-    const userResult = await pool.query('SELECT id FROM users LIMIT 1');
-    if (userResult.rows.length === 0) return res.status(404).json({ error: 'User not found' });
-    const userId = userResult.rows[0].id;
+    const { user_id } = req.query;
+    if (!user_id) return res.status(400).json({ error: 'User ID is required' });
+    const userId = user_id;
 
     const result = await pool.query(
       'SELECT id, bank_name, account_type, balance, last_synced_at FROM linked_accounts WHERE user_id = $1 ORDER BY created_at ASC',

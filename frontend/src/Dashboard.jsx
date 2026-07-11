@@ -877,7 +877,7 @@ function Dashboard({
             {activeTab === "dashboard" ? (
               <DashboardView email={email} user_id={userId} />
             ) : activeTab === "wallet" ? (
-              <WalletView />
+              <WalletView user_id={userId} />
             ) : activeTab === "transactions" ? (
               <TransactionsView email={email} user_id={userId} />
             ) : activeTab === "assistant" ? (

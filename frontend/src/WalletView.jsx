@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import BankLinkModal from './components/BankLinkModal';
 
-const WalletView = () => {
+const WalletView = ({ user_id }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [linkedAccounts, setLinkedAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -17,7 +17,8 @@ const WalletView = () => {
 
   const fetchAccounts = async () => {
     try {
-      const accountsRes = await fetch(`${API_URL}/api/banks/accounts`);
+      if (!user_id) return;
+      const accountsRes = await fetch(`${API_URL}/api/banks/accounts?user_id=${user_id}`);
       if (accountsRes.ok) {
         const data = await accountsRes.json();
         setLinkedAccounts(data);
@@ -31,7 +32,7 @@ const WalletView = () => {
 
   useEffect(() => {
     fetchAccounts();
-  }, []);
+  }, [user_id]);
 
   const handleLinkSuccess = () => {
     // Refresh accounts after linking
@@ -192,6 +193,7 @@ const WalletView = () => {
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
         onLinkSuccess={handleLinkSuccess} 
+        user_id={user_id}
       />
     </div>
   );

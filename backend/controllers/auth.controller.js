@@ -74,13 +74,13 @@ exports.passwordLogin = async (req, res) => {
     const userCheck = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
 
     if (userCheck.rows.length === 0) {
-      return res.status(404).json({ error: 'Email not found. Please sign up or login with Google.' });
+      return res.status(404).json({ error: 'User not found. Please sign up with Google first.' });
     }
 
     const user = userCheck.rows[0];
 
     if (!user.password_hash) {
-      return res.status(403).json({ error: 'User has no password' });
+      return res.status(403).json({ error: 'User has no password. Please log in with Google instead.' });
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password_hash);
