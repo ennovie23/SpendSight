@@ -1,0 +1,894 @@
+commit b8a098a9ba5d4bf7d1e50146b62e138e8cac188d
+Author: Ennovie Evangelista <ennovie23@gmail.com>
+Date:   Fri Jul 10 21:05:37 2026 +0800
+
+    chore: UI and persistence improvements
+
+diff --git a/frontend/src/TransactionsView.jsx b/frontend/src/TransactionsView.jsx
+index bb357a3..e9a0894 100644
+--- a/frontend/src/TransactionsView.jsx
++++ b/frontend/src/TransactionsView.jsx
+@@ -22,10 +22,12 @@ function TransactionsView({ email, user_id }) {
+   const [category, setCategory] = useState("Food");
+   const [date, setDate] = useState(getTodayDateString());
+   const [isBtnHovered, setIsBtnHovered] = useState(false);
+-  const [selectedMonth, setSelectedMonth] = useState(currentMonthName);
+-  const [selectedYear, setSelectedYear] = useState("2026");
++  const [selectedMonth, setSelectedMonth] = useState(() => localStorage.getItem("globalSelectedMonth") || currentMonthName);
++  const [selectedYear, setSelectedYear] = useState(() => localStorage.getItem("globalSelectedYear") || "2026");
+   const [availableYears, setAvailableYears] = useState(["2026"]);
+-  const [sortDirection, setSortDirection] = useState("desc");
++  const [sortDirection, setSortDirection] = useState(() => {
++    return localStorage.getItem("txSortDirection") || "desc";
++  });
+ 
+   // Page limit size & pagination states
+   const [pageSize, setPageSize] = useState(10);
+@@ -67,7 +69,6 @@ function TransactionsView({ email, user_id }) {
+   // Modal confirmation states
+   const [showModal, setShowModal] = useState(false);
+   const [modalConfig, setModalConfig] = useState({ title: "", message: "", onConfirm: null });
+-  const [actionModalTx, setActionModalTx] = useState(null); // Mobile action menu modal
+   const [showSuccessToast, setShowSuccessToast] = useState(false);
+   
+   // Draggable FAB state
+@@ -227,6 +228,7 @@ function TransactionsView({ email, user_id }) {
+   useEffect(() => {
+     if (selectedMonth !== "All" && !displayedMonths.includes(selectedMonth)) {
+       setSelectedMonth("All");
++      localStorage.setItem("globalSelectedMonth", "All");
+     }
+   }, [selectedYear, displayedMonths]);
+ 
+@@ -790,7 +792,9 @@ function TransactionsView({ email, user_id }) {
+ 
+   // Toggle sort direction
+   const handleSortToggle = () => {
+-    setSortDirection(sortDirection === "desc" ? "asc" : "desc");
++    const newDir = sortDirection === "desc" ? "asc" : "desc";
++    setSortDirection(newDir);
++    localStorage.setItem("txSortDirection", newDir);
+   };
+ 
+   // Badge stylings per category
+@@ -1471,7 +1475,11 @@ function TransactionsView({ email, user_id }) {
+               {/* Year Selector dropdown */}
+               <select
+                 value={selectedYear}
+-                onChange={(e) => setSelectedYear(e.target.value)}
++                onChange={(e) => {
++                  const val = e.target.value;
++                  setSelectedYear(val);
++                  localStorage.setItem("globalSelectedYear", val);
++                }}
+                 style={{
+                   backgroundColor: "var(--bg-card-inner)",
+                   border: "1px solid var(--border-color)",
+@@ -1493,7 +1501,11 @@ function TransactionsView({ email, user_id }) {
+               {/* Month selector dropdown */}
+               <select
+                 value={selectedMonth}
+-                onChange={(e) => setSelectedMonth(e.target.value)}
++                onChange={(e) => {
++                  const val = e.target.value;
++                  setSelectedMonth(val);
++                  localStorage.setItem("globalSelectedMonth", val);
++                }}
+                 style={{
+                   backgroundColor: "var(--bg-card-inner)",
+                   border: "1px solid var(--border-color)",
+@@ -1532,18 +1544,9 @@ function TransactionsView({ email, user_id }) {
+ 
+           <div style={{ overflowX: "auto" }}>
+             <div style={{ minWidth: isMobile ? "100%" : "600px", display: "flex", flexDirection: "column" }}>
+-              {/* Table Header */}
+-              {!isMobile && (
+-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 80px", padding: "16px 24px", borderBottom: "1px solid var(--border-color)", color: "var(--text-secondary)", fontSize: "12px", fontWeight: "600", letterSpacing: "0.5px" }}>
+-                  <span>DATE</span>
+-                  <span>CATEGORY</span>
+-                  <span>PAYMENT</span>
+-                  <span>AMOUNT</span>
+-                  <span style={{ textAlign: "right" }}>ACTION</span>
+-                </div>
+-              )}
++              {/* Table Header Removed for unified card layout */}
+ 
+-              <div style={{ overflowY: "auto", maxHeight: "480px", display: "flex", flexDirection: "column", gap: isMobile ? "12px" : "0", padding: isMobile ? "4px" : "0" }}>
++              <div style={{ overflowY: "auto", maxHeight: "480px", display: "flex", flexDirection: "column", gap: "12px", padding: isMobile ? "4px" : "0" }}>
+                 {displayedTransactions.length === 0 ? (
+                   <div style={{ padding: "32px 16px", textAlign: "center", color: "var(--text-secondary)", fontSize: "14px" }}>
+                     {viewTrash ? "Trash bin is empty." : "No transactions logged yet."}
+@@ -1553,92 +1556,22 @@ function TransactionsView({ email, user_id }) {
+                     const styleData = getCategoryStyles(tx.category);
+                     const isEditingThis = editingId === tx.id;
+                     const rowBg = index % 2 === 0 ? "transparent" : "rgba(255, 255, 255, 0.02)";
+-                    
+-                    const actionButtons = viewTrash ? (
+-                      <>
+-                        <button onClick={() => handleRestoreClick(tx.id)} title="Restore" style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-secondary)" }} onMouseEnter={(e) => e.currentTarget.style.color = "#00d8f6"} onMouseLeave={(e) => e.currentTarget.style.color = "var(--text-secondary)"}>
+-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 2v6h6M21.5 22v-6h-6"/><path d="M22 11.5A10 10 0 0 0 9.5 2.5M2 12.5a10 10 0 0 0 12.5 9"/></svg>
+-                        </button>
+-                        <button onClick={() => handlePurgeClick(tx.id)} title="Delete Permanently" style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-secondary)" }} onMouseEnter={(e) => e.currentTarget.style.color = "#FF5252"} onMouseLeave={(e) => e.currentTarget.style.color = "var(--text-secondary)"}>
+-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+-                        </button>
+-                      </>
+-                    ) : (
+-                      <>
+-                        <button onClick={() => handleEditClick(tx)} title="Edit Expense" style={{ background: "none", border: "none", cursor: "pointer", color: isEditingThis ? "#00d8f6" : "var(--text-secondary)" }} onMouseEnter={(e) => e.currentTarget.style.color = "#00d8f6"} onMouseLeave={(e) => e.currentTarget.style.color = isEditingThis ? "#00d8f6" : "var(--text-secondary)"}>
+-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+-                        </button>
+-                        <button onClick={() => handleDeleteClick(tx.id)} title="Move to Trash" style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-secondary)" }} onMouseEnter={(e) => e.currentTarget.style.color = "#FF5252"} onMouseLeave={(e) => e.currentTarget.style.color = "var(--text-secondary)"}>
+-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+-                        </button>
+-                      </>
+-                    );
+ 
+-                    if (isMobile) {
+-                      return (
+-                        <div key={tx.id} onClick={() => setActionModalTx(tx)} style={{ cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px", borderRadius: "12px", backgroundColor: isEditingThis ? "rgba(0, 216, 246, 0.08)" : "rgba(255, 255, 255, 0.02)", border: "1px solid var(--border-color)", opacity: viewTrash && !tx.deleted_at ? 0.5 : 1 }}>
+-                          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+-                            <span style={{ fontSize: "13px", color: "var(--text-secondary)" }}>
+-                              {tx.date ? new Date(tx.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}
+-                            </span>
+-                            <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", backgroundColor: styleData.bg, color: styleData.color, padding: "4px 10px", borderRadius: "12px", fontSize: "12px", fontWeight: "bold", width: "fit-content" }}>
+-                              <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: styleData.dot }}></span>
+-                              {tx.category}
+-                            </span>
+-                            <span style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
+-                              via {tx.bank_name || 'Cash'}
+-                            </span>
+-                          </div>
+-                          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "10px" }}>
+-                            <span style={{ fontSize: "16px", fontWeight: "bold", color: "var(--text-primary)", letterSpacing: "0.5px" }}>
+-                              ₱{tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+-                            </span>
+-                          </div>
+-                        </div>
+-                      );
+-                    }
+-                    
+                     return (
+-                      <div key={tx.id} onClick={(e) => { if (e.target.closest('button')) return; setReceiptPreview(tx); }} style={{ cursor: "pointer", display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 80px", alignItems: "center", padding: "16px 24px", borderBottom: "1px solid var(--border-color)", backgroundColor: isEditingThis ? "rgba(0, 216, 246, 0.08)" : rowBg, opacity: viewTrash && !tx.deleted_at ? 0.5 : 1, transition: "background-color 0.2s" }} onMouseEnter={(e) => {if(!isEditingThis) e.currentTarget.style.backgroundColor = "var(--bg-card-inner)"}} onMouseLeave={(e) => {if(!isEditingThis) e.currentTarget.style.backgroundColor = rowBg}}>
+-                        
+-                        {/* Date */}
+-                        <span style={{ fontSize: "14px", color: "var(--text-secondary)" }}>
+-                          {tx.date ? new Date(tx.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}
+-                        </span>
+-                        
+-                        {/* Category Badge */}
+-                        <div style={{ display: "flex", alignItems: "center" }}>
+-                          <span
+-                            style={{
+-                              display: "inline-flex",
+-                              alignItems: "center",
+-                              gap: "6px",
+-                              backgroundColor: styleData.bg,
+-                              color: styleData.color,
+-                              padding: "4px 10px",
+-                              borderRadius: "12px",
+-                              fontSize: "12px",
+-                              fontWeight: "bold"
+-                            }}
+-                          >
++                      <div key={tx.id} onClick={() => setReceiptPreview(tx)} style={{ cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderRadius: "12px", backgroundColor: isEditingThis ? "rgba(0, 216, 246, 0.08)" : "rgba(255, 255, 255, 0.02)", border: "1px solid var(--border-color)", opacity: viewTrash && !tx.deleted_at ? 0.5 : 1, transition: "background-color 0.2s" }} onMouseEnter={(e) => {if(!isEditingThis) e.currentTarget.style.backgroundColor = "var(--bg-card-inner)"}} onMouseLeave={(e) => {if(!isEditingThis) e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.02)"}}>
++                        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
++                          <span style={{ fontSize: "13px", color: "var(--text-secondary)" }}>
++                            {tx.date ? new Date(tx.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}
++                          </span>
++                          <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", backgroundColor: styleData.bg, color: styleData.color, padding: "4px 10px", borderRadius: "12px", fontSize: "12px", fontWeight: "bold", width: "fit-content" }}>
+                             <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: styleData.dot }}></span>
+                             {tx.category}
+                           </span>
+                         </div>
+-
+-                        {/* Payment Method */}
+-                        <span style={{ fontSize: "14px", color: "var(--text-secondary)" }}>
+-                          {tx.bank_name || 'Cash'}
+-                        </span>
+-
+-                        {/* Amount */}
+-                        <span style={{ fontSize: "15px", fontWeight: "600", color: "var(--text-primary)" }}>
+-                          ₱{tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+-                        </span>
+-                        
+-                        {/* Action Buttons */}
+-                        <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", opacity: isEditingThis ? 1 : 0.6, transition: "opacity 0.2s" }} onMouseEnter={(e) => e.currentTarget.style.opacity = 1} onMouseLeave={(e) => e.currentTarget.style.opacity = isEditingThis ? 1 : 0.6}>
+-                          {actionButtons}
++                        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
++                          <span style={{ fontSize: "16px", fontWeight: "bold", color: "var(--text-primary)", letterSpacing: "0.5px" }}>
++                            ₱{tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
++                          </span>
+                         </div>
+                       </div>
+                     );
+@@ -2087,89 +2020,6 @@ function TransactionsView({ email, user_id }) {
+         </div>
+       )}
+ 
+-      {/* Mobile Action Menu Modal */}
+-      {actionModalTx && (
+-        <div style={{
+-          position: "fixed",
+-          top: 0,
+-          left: 0,
+-          right: 0,
+-          bottom: 0,
+-          backgroundColor: "rgba(0,0,0,0.7)",
+-          display: "flex",
+-          alignItems: "flex-end",
+-          zIndex: 2500,
+-          backdropFilter: "blur(2px)",
+-        }} onClick={() => setActionModalTx(null)}>
+-          <div style={{
+-            width: "100%",
+-            backgroundColor: "var(--bg-card)",
+-            borderTopLeftRadius: "24px",
+-            borderTopRightRadius: "24px",
+-            padding: "24px",
+-            display: "flex",
+-            flexDirection: "column",
+-            gap: "16px",
+-            borderTop: "1px solid var(--border-color)",
+-            boxShadow: "0 -10px 40px rgba(0,0,0,0.5)"
+-          }} onClick={(e) => e.stopPropagation()}>
+-            <div style={{ width: "40px", height: "4px", backgroundColor: "var(--border-color)", borderRadius: "2px", margin: "0 auto -8px" }} />
+-            <h3 style={{ margin: "8px 0 16px 0", fontSize: "18px", color: "var(--text-primary)", textAlign: "center" }}>Transaction Options</h3>
+-            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+-              <button 
+-                onClick={() => { setReceiptPreview(actionModalTx); setActionModalTx(null); }} 
+-                style={{ padding: "16px", backgroundColor: "var(--bg-app)", border: "1px solid var(--border-color)", borderRadius: "12px", color: "var(--text-primary)", fontSize: "16px", fontWeight: "600", cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center", gap: "8px" }}
+-              >
+-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+-                View Details
+-              </button>
+-              
+-              {!viewTrash ? (
+-                <>
+-                  <button 
+-                    onClick={() => { handleEditClick(actionModalTx); setActionModalTx(null); }} 
+-                    style={{ padding: "16px", backgroundColor: "var(--bg-app)", border: "1px solid var(--border-color)", borderRadius: "12px", color: "#00d8f6", fontSize: "16px", fontWeight: "600", cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center", gap: "8px" }}
+-                  >
+-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+-                    Edit Form
+-                  </button>
+-                  <button 
+-                    onClick={() => { handleDeleteClick(actionModalTx.id); setActionModalTx(null); }} 
+-                    style={{ padding: "16px", backgroundColor: "rgba(255, 82, 82, 0.1)", border: "1px solid rgba(255, 82, 82, 0.2)", borderRadius: "12px", color: "#FF5252", fontSize: "16px", fontWeight: "600", cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center", gap: "8px" }}
+-                  >
+-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+-                    Move to Trash
+-                  </button>
+-                </>
+-              ) : (
+-                <>
+-                  <button 
+-                    onClick={() => { handleRestoreClick(actionModalTx.id); setActionModalTx(null); }} 
+-                    style={{ padding: "16px", backgroundColor: "rgba(0, 216, 246, 0.1)", border: "1px solid rgba(0, 216, 246, 0.2)", borderRadius: "12px", color: "#00d8f6", fontSize: "16px", fontWeight: "600", cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center", gap: "8px" }}
+-                  >
+-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 2v6h6M21.5 22v-6h-6"/><path d="M22 11.5A10 10 0 0 0 9.5 2.5M2 12.5a10 10 0 0 0 12.5 9"/></svg>
+-                    Restore
+-                  </button>
+-                  <button 
+-                    onClick={() => { handlePurgeClick(actionModalTx.id); setActionModalTx(null); }} 
+-                    style={{ padding: "16px", backgroundColor: "rgba(255, 82, 82, 0.1)", border: "1px solid rgba(255, 82, 82, 0.2)", borderRadius: "12px", color: "#FF5252", fontSize: "16px", fontWeight: "600", cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center", gap: "8px" }}
+-                  >
+-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+-                    Delete Permanently
+-                  </button>
+-                </>
+-              )}
+-              
+-              <button 
+-                onClick={() => setActionModalTx(null)} 
+-                style={{ padding: "16px", backgroundColor: "transparent", border: "1px solid var(--border-color)", borderRadius: "12px", color: "var(--text-secondary)", fontSize: "16px", fontWeight: "600", cursor: "pointer", marginTop: "4px" }}
+-              >
+-                Cancel
+-              </button>
+-            </div>
+-          </div>
+-        </div>
+-      )}
+ 
+       {receiptPreview && (
+         <div style={{
+@@ -2254,6 +2104,45 @@ function TransactionsView({ email, user_id }) {
+                     <div style={{ fontSize: isMobile ? "12px" : "14px", color: "var(--text-primary)", lineHeight: "1.4" }}>{receiptPreview.description}</div>
+                   </div>
+                 )}
++                
++                {/* Actions */}
++                <div style={{ borderTop: "1px solid var(--border-color)", paddingTop: "16px", display: "flex", gap: "12px", marginTop: "auto" }}>
++                  {!viewTrash ? (
++                    <>
++                      <button 
++                        onClick={() => { handleEditClick(receiptPreview); setReceiptPreview(null); }} 
++                        style={{ flex: 1, padding: "12px", backgroundColor: "rgba(0, 216, 246, 0.1)", border: "1px solid rgba(0, 216, 246, 0.2)", borderRadius: "10px", color: "#00d8f6", fontSize: "14px", fontWeight: "600", cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center", gap: "6px" }}
++                      >
++                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
++                        Edit
++                      </button>
++                      <button 
++                        onClick={() => { handleDeleteClick(receiptPreview.id); setReceiptPreview(null); }} 
++                        style={{ flex: 1, padding: "12px", backgroundColor: "rgba(255, 82, 82, 0.1)", border: "1px solid rgba(255, 82, 82, 0.2)", borderRadius: "10px", color: "#FF5252", fontSize: "14px", fontWeight: "600", cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center", gap: "6px" }}
++                      >
++                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
++                        Delete
++                      </button>
++                    </>
++                  ) : (
++                    <>
++                      <button 
++                        onClick={() => { handleRestoreClick(receiptPreview.id); setReceiptPreview(null); }} 
++                        style={{ flex: 1, padding: "12px", backgroundColor: "rgba(0, 216, 246, 0.1)", border: "1px solid rgba(0, 216, 246, 0.2)", borderRadius: "10px", color: "#00d8f6", fontSize: "14px", fontWeight: "600", cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center", gap: "6px" }}
++                      >
++                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 2v6h6M21.5 22v-6h-6"/><path d="M22 11.5A10 10 0 0 0 9.5 2.5M2 12.5a10 10 0 0 0 12.5 9"/></svg>
++                        Restore
++                      </button>
++                      <button 
++                        onClick={() => { handlePurgeClick(receiptPreview.id); setReceiptPreview(null); }} 
++                        style={{ flex: 1, padding: "12px", backgroundColor: "rgba(255, 82, 82, 0.1)", border: "1px solid rgba(255, 82, 82, 0.2)", borderRadius: "10px", color: "#FF5252", fontSize: "14px", fontWeight: "600", cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center", gap: "6px" }}
++                      >
++                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
++                        Purge
++                      </button>
++                    </>
++                  )}
++                </div>
+               </div>
+             </div>
+           </div>
+
+commit 37c54bd3d97338aa0d6e16fe9189d63770b5e976
+Author: Ennovie Evangelista <ennovie23@gmail.com>
+Date:   Fri Jul 10 20:21:28 2026 +0800
+
+    feat: ai payment method detection and wallet linking
+
+diff --git a/frontend/src/TransactionsView.jsx b/frontend/src/TransactionsView.jsx
+index 844bc14..bb357a3 100644
+--- a/frontend/src/TransactionsView.jsx
++++ b/frontend/src/TransactionsView.jsx
+@@ -50,6 +50,10 @@ function TransactionsView({ email, user_id }) {
+   const [scanImagePreview, setScanImagePreview] = useState(null);
+   const [scanFile, setScanFile] = useState(null);
+   const [formReceiptUrl, setFormReceiptUrl] = useState("");
++  
++  // Payment method states
++  const [linkedAccounts, setLinkedAccounts] = useState([]);
++  const [selectedAccount, setSelectedAccount] = useState("");
+ 
+   useEffect(() => {
+     const handleResize = () => setIsMobile(window.innerWidth <= 768);
+@@ -181,10 +185,26 @@ function TransactionsView({ email, user_id }) {
+     }
+   };
+ 
++  const fetchLinkedAccounts = async () => {
++    try {
++      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/banks/accounts`);
++      if (response.ok) {
++        const data = await response.json();
++        setLinkedAccounts(data);
++        if (data.length > 0) {
++          setSelectedAccount(data[0].id);
++        }
++      }
++    } catch (err) {
++      console.error("Failed to fetch linked accounts:", err);
++    }
++  };
++
+   // Sync data fetch on mount or state toggling
+   useEffect(() => {
+     setEditingId(null);
+     clearForm();
++    fetchLinkedAccounts();
+ 
+     if (viewTrash) {
+       fetchTrash();
+@@ -227,6 +247,18 @@ function TransactionsView({ email, user_id }) {
+     setFormReceiptUrl("");
+   };
+ 
++  const matchPaymentMethod = (paymentMethodName) => {
++    if (!paymentMethodName) return "";
++    const lower = paymentMethodName.toLowerCase();
++    const match = linkedAccounts.find(acc => acc.bank_name.toLowerCase().includes(lower) || lower.includes(acc.bank_name.toLowerCase()));
++    return match ? match.id : "";
++  };
++
++  const getFallbackAccountId = () => {
++    const cashAccount = linkedAccounts.find(acc => acc.bank_name.toLowerCase().includes("cash"));
++    return cashAccount ? cashAccount.id : selectedAccount;
++  };
++
+   const handleImageUpload = async (event) => {
+     const inputTarget = event.target;
+     const file = inputTarget.files[0];
+@@ -256,16 +288,37 @@ function TransactionsView({ email, user_id }) {
+         
+         if (data.is_receipt === false) {
+           // Pre-fill manual form for objects
+-          setAmount(data.amount || "");
+-          setCategory(data.category || "Food");
+-          setDescription(data.description || data.merchant || "");
+-          setFormReceiptUrl(data.receipt_url || "");
+-          
+-          if (data.category && !categoriesList.includes(data.category)) {
+-            setCategoriesList(prev => Array.from(new Set([...prev, data.category])));
++          if (!scanFile && !data.receipt_url) {
++            setAmount(data.amount || "");
++            setCategory(data.category || "Food");
++            setDescription(data.description || data.merchant || "");
++            setFormReceiptUrl(data.receipt_url || "");
++            
++            const detectedPayment = data.payment_method;
++            const autoAccount = matchPaymentMethod(detectedPayment);
++            const fallbackId = getFallbackAccountId();
++            if (autoAccount) {
++              setSelectedAccount(autoAccount);
++            } else if (detectedPayment) {
++              setSelectedAccount(fallbackId);
++              setModalConfig({
++                title: "Payment Method Not Linked",
++                message: `We detected "${detectedPayment}" as your payment method, but it is not linked in your Wallet yet. We've selected Cash for now. Please link it in the Wallet tab for accurate tracking.`,
++                onConfirm: null
++              });
++              setShowModal(true);
++            }
++            
++            if (data.category && !categoriesList.includes(data.category)) {
++              setCategoriesList(prev => Array.from(new Set([...prev, data.category])));
++            }
+           }
+         } else {
+           // Show verification modal for receipts
++          const detectedPayment = data.payment_method;
++          const autoAccount = matchPaymentMethod(detectedPayment);
++          const fallbackId = getFallbackAccountId();
++          
+           setScanResult({
+             amount: data.amount || "",
+             originalAmount: data.amount || 0,
+@@ -273,9 +326,19 @@ function TransactionsView({ email, user_id }) {
+             category: data.category || "Food",
+             description: data.description || "",
+             items: data.items || [],
+-            receipt_url: data.receipt_url || ""
++            receipt_url: data.receipt_url || "",
++            linked_account_id: autoAccount || fallbackId
+           });
+           
++          if (detectedPayment && !autoAccount) {
++            setModalConfig({
++              title: "Payment Method Not Linked",
++              message: `We detected "${detectedPayment}" as your payment method, but it is not linked in your Wallet yet. We've selected Cash for now. Please link it in the Wallet tab for accurate tracking.`,
++              onConfirm: null
++            });
++            setShowModal(true);
++          }
++          
+           if (data.category && !categoriesList.includes(data.category)) {
+             setCategoriesList(prev => Array.from(new Set([...prev, data.category])));
+           }
+@@ -359,16 +422,32 @@ function TransactionsView({ email, user_id }) {
+           setFormReceiptUrl("");
+           setScanFile(null);
+           
++          const detectedPayment = data.payment_method;
++          const autoAccount = matchPaymentMethod(detectedPayment);
++          const fallbackId = getFallbackAccountId();
++          if (autoAccount) {
++            setSelectedAccount(autoAccount);
++          } else if (detectedPayment) {
++            setSelectedAccount(fallbackId);
++            setModalConfig({
++              title: "Payment Method Not Linked",
++              message: `We detected "${detectedPayment}" as your payment method, but it is not linked in your Wallet yet. We've selected Cash for now. Please link it in the Wallet tab for accurate tracking.`,
++              onConfirm: null
++            });
++            setShowModal(true);
++          } else {
++            setModalConfig({ 
++              title: "Success! 🎙️", 
++              message: "Your voice log was analyzed. The manual entry form has been prefilled for you to review and log!", 
++              onConfirm: null 
++            });
++            setShowModal(true);
++          }
++          
+           if (data.category && !categoriesList.includes(data.category)) {
+             setCategoriesList(prev => Array.from(new Set([...prev, data.category])));
+           }
+           
+-          setModalConfig({ 
+-            title: "Success! 🎙️", 
+-            message: "Your voice log was analyzed. The manual entry form has been prefilled for you to review and log!", 
+-            onConfirm: null 
+-          });
+-          setShowModal(true);
+         } else {
+           setModalConfig({ title: "Voice Log Failed", message: data.error || "Failed to process voice log.", onConfirm: null });
+           setShowModal(true);
+@@ -414,11 +493,18 @@ function TransactionsView({ email, user_id }) {
+     try {
+       const formData = new FormData();
+       formData.append("amount", scanResult.amount);
+-      formData.append("category", scanResult.category);
+-      formData.append("description", scanResult.description || scanResult.merchant);
++      formData.append("category", scanResult.category === "Other" ? cleanAndFormatCategory(customCategory) : scanResult.category);
+       formData.append("date", getTodayDateString());
++      formData.append("description", scanResult.description || "");
+       formData.append("user_id", user_id);
+       formData.append("merchant", scanResult.merchant || "");
++      
++      if (scanResult.linked_account_id) {
++        formData.append("linked_account_id", scanResult.linked_account_id);
++      } else if (selectedAccount) {
++        formData.append("linked_account_id", selectedAccount);
++      }
++      
+       if (scanFile) formData.append("image", scanFile);
+       if (scanResult.receipt_url) formData.append("receipt_url", scanResult.receipt_url);
+ 
+@@ -469,19 +555,23 @@ function TransactionsView({ email, user_id }) {
+         return;
+       }
+       if (!category) {
+-        alert("Please select a category");
++        setModalConfig({ title: "Validation Error", message: "Please select a category", onConfirm: null });
++        setShowModal(true);
+         return;
+       }
+       if (category === "Other" && !customCategory.trim()) {
+-        alert("Please specify custom category name");
++        setModalConfig({ title: "Validation Error", message: "Please specify custom category name", onConfirm: null });
++        setShowModal(true);
+         return;
+       }
+       if (!date) {
+-        alert("Please select a date");
++        setModalConfig({ title: "Validation Error", message: "Please select a date", onConfirm: null });
++        setShowModal(true);
+         return;
+       }
+       if (date > getTodayDateString()) {
+-        alert("You cannot log expenses for future dates.");
++        setModalConfig({ title: "Validation Error", message: "You cannot log expenses for future dates.", onConfirm: null });
++        setShowModal(true);
+         return;
+       }
+ 
+@@ -530,6 +620,7 @@ function TransactionsView({ email, user_id }) {
+         formData.append("description", description || finalCategory);
+         formData.append("date", date);
+         formData.append("user_id", user_id);
++        if (selectedAccount) formData.append("linked_account_id", selectedAccount);
+         if (formReceiptUrl) formData.append("receipt_url", formReceiptUrl);
+         if (scanFile) formData.append("image", scanFile);
+ 
+@@ -559,12 +650,22 @@ function TransactionsView({ email, user_id }) {
+           setShowSuccessToast(true);
+           setTimeout(() => setShowSuccessToast(false), 3000);
+         } else {
+-          alert("Failed to save expense in the database.");
++          const contentType = response.headers.get("content-type");
++          let errorMessage = "Failed to save expense in the database.";
++          if (contentType && contentType.includes("application/json")) {
++            const errorData = await response.json();
++            errorMessage = errorData.error || errorMessage;
++          } else {
++            errorMessage = await response.text();
++          }
++          setModalConfig({ title: "Failed to Save", message: errorMessage, onConfirm: null });
++          setShowModal(true);
+         }
+       }
+     } catch (error) {
+       console.error("Error processing expense:", error);
+-      alert("Error processing expense. Please try again.");
++      setModalConfig({ title: "Error", message: "Error processing expense. Please try again.", onConfirm: null });
++      setShowModal(true);
+     }
+   };
+ 
+@@ -1082,6 +1183,48 @@ function TransactionsView({ email, user_id }) {
+               </div>
+             </div>
+ 
++            {/* Payment Method selection */}
++            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
++              <label style={{ color: "var(--text-secondary)", fontSize: "14px", fontWeight: "500" }}>Payment Method</label>
++              <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
++                <div style={{ position: "absolute", left: "14px", pointerEvents: "none", color: "var(--text-secondary)", display: "flex" }}>
++                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
++                    <rect x="2" y="5" width="20" height="14" rx="2" ry="2"/>
++                    <line x1="2" y1="10" x2="22" y2="10"/>
++                  </svg>
++                </div>
++                <select
++                  value={selectedAccount}
++                  onChange={(e) => setSelectedAccount(e.target.value)}
++                  disabled={viewTrash}
++                  style={{
++                    width: "100%",
++                    backgroundColor: "var(--bg-card-inner)",
++                    border: "1px solid var(--border-color)",
++                    borderRadius: "8px",
++                    padding: "12px 16px 12px 40px",
++                    color: "var(--text-primary)",
++                    fontSize: "15px",
++                    outline: "none",
++                    boxSizing: "border-box",
++                    appearance: "none",
++                    cursor: "pointer"
++                  }}
++                >
++                  {linkedAccounts.map((acc) => (
++                    <option key={acc.id} value={acc.id}>
++                      {acc.bank_name} - ₱{parseFloat(acc.balance).toLocaleString()}
++                    </option>
++                  ))}
++                </select>
++                <div style={{ position: "absolute", right: "14px", pointerEvents: "none", color: "var(--text-secondary)", display: "flex" }}>
++                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
++                    <polyline points="6 9 12 15 18 9"></polyline>
++                  </svg>
++                </div>
++              </div>
++            </div>
++
+             {/* Category selection */}
+             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+               <label style={{ color: "var(--text-secondary)", fontSize: "14px", fontWeight: "500" }}>Category</label>
+@@ -1391,9 +1534,10 @@ function TransactionsView({ email, user_id }) {
+             <div style={{ minWidth: isMobile ? "100%" : "600px", display: "flex", flexDirection: "column" }}>
+               {/* Table Header */}
+               {!isMobile && (
+-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 80px", padding: "16px 24px", borderBottom: "1px solid var(--border-color)", color: "var(--text-secondary)", fontSize: "12px", fontWeight: "600", letterSpacing: "0.5px" }}>
++                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 80px", padding: "16px 24px", borderBottom: "1px solid var(--border-color)", color: "var(--text-secondary)", fontSize: "12px", fontWeight: "600", letterSpacing: "0.5px" }}>
+                   <span>DATE</span>
+                   <span>CATEGORY</span>
++                  <span>PAYMENT</span>
+                   <span>AMOUNT</span>
+                   <span style={{ textAlign: "right" }}>ACTION</span>
+                 </div>
+@@ -1441,6 +1585,9 @@ function TransactionsView({ email, user_id }) {
+                               <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: styleData.dot }}></span>
+                               {tx.category}
+                             </span>
++                            <span style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
++                              via {tx.bank_name || 'Cash'}
++                            </span>
+                           </div>
+                           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "10px" }}>
+                             <span style={{ fontSize: "16px", fontWeight: "bold", color: "var(--text-primary)", letterSpacing: "0.5px" }}>
+@@ -1452,7 +1599,7 @@ function TransactionsView({ email, user_id }) {
+                     }
+                     
+                     return (
+-                      <div key={tx.id} onClick={(e) => { if (e.target.closest('button')) return; setReceiptPreview(tx); }} style={{ cursor: "pointer", display: "grid", gridTemplateColumns: "1fr 1fr 1fr 80px", alignItems: "center", padding: "16px 24px", borderBottom: "1px solid var(--border-color)", backgroundColor: isEditingThis ? "rgba(0, 216, 246, 0.08)" : rowBg, opacity: viewTrash && !tx.deleted_at ? 0.5 : 1, transition: "background-color 0.2s" }} onMouseEnter={(e) => {if(!isEditingThis) e.currentTarget.style.backgroundColor = "var(--bg-card-inner)"}} onMouseLeave={(e) => {if(!isEditingThis) e.currentTarget.style.backgroundColor = rowBg}}>
++                      <div key={tx.id} onClick={(e) => { if (e.target.closest('button')) return; setReceiptPreview(tx); }} style={{ cursor: "pointer", display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 80px", alignItems: "center", padding: "16px 24px", borderBottom: "1px solid var(--border-color)", backgroundColor: isEditingThis ? "rgba(0, 216, 246, 0.08)" : rowBg, opacity: viewTrash && !tx.deleted_at ? 0.5 : 1, transition: "background-color 0.2s" }} onMouseEnter={(e) => {if(!isEditingThis) e.currentTarget.style.backgroundColor = "var(--bg-card-inner)"}} onMouseLeave={(e) => {if(!isEditingThis) e.currentTarget.style.backgroundColor = rowBg}}>
+                         
+                         {/* Date */}
+                         <span style={{ fontSize: "14px", color: "var(--text-secondary)" }}>
+@@ -1479,6 +1626,11 @@ function TransactionsView({ email, user_id }) {
+                           </span>
+                         </div>
+ 
++                        {/* Payment Method */}
++                        <span style={{ fontSize: "14px", color: "var(--text-secondary)" }}>
++                          {tx.bank_name || 'Cash'}
++                        </span>
++
+                         {/* Amount */}
+                         <span style={{ fontSize: "15px", fontWeight: "600", color: "var(--text-primary)" }}>
+                           ₱{tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+@@ -1769,6 +1921,21 @@ function TransactionsView({ email, user_id }) {
+                 </select>
+               </div>
+             </div>
++
++            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
++              <span style={{ fontSize: "12px", color: "var(--text-secondary)" }}>Payment Method</span>
++              <select
++                value={scanResult.linked_account_id || ""}
++                onChange={(e) => setScanResult({...scanResult, linked_account_id: e.target.value})}
++                style={{ width: "100%", backgroundColor: "var(--bg-app)", border: "1px solid var(--border-color)", color: "var(--text-primary)", padding: "10px 12px", borderRadius: "8px", fontSize: "14px", outline: "none" }}
++              >
++                {linkedAccounts.map((acc) => (
++                  <option key={acc.id} value={acc.id}>
++                    {acc.bank_name} - ₱{parseFloat(acc.balance).toLocaleString()}
++                  </option>
++                ))}
++              </select>
++            </div>
+             
+             <button
+               onClick={handleSaveScan}
+@@ -2071,10 +2238,15 @@ function TransactionsView({ email, user_id }) {
+                     </div>
+                   </div>
+                   <div style={{ flex: 1 }}>
+-                    <div style={{ fontSize: isMobile ? "10px" : "12px", color: "var(--text-secondary)", marginBottom: "2px" }}>AMOUNT</div>
+-                    <div style={{ fontSize: isMobile ? "18px" : "24px", color: "#00d8f6", fontWeight: "700" }}>₱{parseFloat(receiptPreview.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
++                    <div style={{ fontSize: isMobile ? "10px" : "12px", color: "var(--text-secondary)", marginBottom: "2px" }}>PAYMENT MODE</div>
++                    <div style={{ fontSize: isMobile ? "12px" : "16px", color: "var(--text-primary)", fontWeight: "500" }}>{receiptPreview.bank_name || 'Cash'}</div>
+                   </div>
+                 </div>
++
++                <div style={{ marginTop: isMobile ? "8px" : "12px" }}>
++                  <div style={{ fontSize: isMobile ? "10px" : "12px", color: "var(--text-secondary)", marginBottom: "2px" }}>AMOUNT</div>
++                  <div style={{ fontSize: isMobile ? "18px" : "24px", color: "#00d8f6", fontWeight: "700" }}>₱{parseFloat(receiptPreview.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
++                </div>
+                 
+                 {receiptPreview.description && receiptPreview.description !== receiptPreview.merchant && (
+                   <div>
+
+commit 7e0f02a2cec65b7853ba0c022a7624c85ebc22b2
+Author: Ennovie Evangelista <ennovie23@gmail.com>
+Date:   Thu Jul 9 23:32:32 2026 +0800
+
+    Update AI Assistant font size, widen chat bubbles, and apply PhotosView lightbox style to Transaction Details modal
+
+diff --git a/frontend/src/TransactionsView.jsx b/frontend/src/TransactionsView.jsx
+index 056733f..844bc14 100644
+--- a/frontend/src/TransactionsView.jsx
++++ b/frontend/src/TransactionsView.jsx
+@@ -46,6 +46,7 @@ function TransactionsView({ email, user_id }) {
+   const [showScannerOptions, setShowScannerOptions] = useState(false);
+   const [scanResult, setScanResult] = useState(null);
+   const [receiptPreview, setReceiptPreview] = useState(null);
++  const [photoFullscreen, setPhotoFullscreen] = useState(false);
+   const [scanImagePreview, setScanImagePreview] = useState(null);
+   const [scanFile, setScanFile] = useState(null);
+   const [formReceiptUrl, setFormReceiptUrl] = useState("");
+@@ -952,7 +953,7 @@ function TransactionsView({ email, user_id }) {
+                   display: "flex", alignItems: "center", gap: "12px", backgroundColor: "var(--bg-card)", border: "1px solid var(--border-color)", padding: "12px 16px", borderRadius: "100px", boxShadow: "0 4px 12px rgba(0,0,0,0.15)", cursor: "pointer"
+                 }}
+               >
+-                <span style={{ fontSize: "15px", fontWeight: "600", color: "var(--text-primary)" }}>Upload Receipt</span>
++                <span style={{ fontSize: "15px", fontWeight: "600", color: "var(--text-primary)" }}>Upload</span>
+                 <div style={{ width: "36px", height: "36px", borderRadius: "50%", backgroundColor: "rgba(0, 216, 246, 0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00d8f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+@@ -2003,11 +2004,10 @@ function TransactionsView({ email, user_id }) {
+         </div>
+       )}
+ 
+-
+       {receiptPreview && (
+         <div style={{
+           position: "fixed",
+-          top: 0,
++          top: isMobile ? "57px" : 0,
+           left: 0,
+           right: 0,
+           bottom: 0,
+@@ -2018,43 +2018,68 @@ function TransactionsView({ email, user_id }) {
+           zIndex: 2000,
+           backdropFilter: "blur(4px)",
+         }}>
+-          <div style={{ position: "absolute", top: "24px", right: "24px" }}>
+-            <button onClick={() => setReceiptPreview(null)} style={{ background: "transparent", border: "none", color: "#fff", cursor: "pointer", padding: "8px" }}>
+-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
++          <div style={{ 
++            display: "flex", 
++            flexDirection: isMobile ? "column" : "row", 
++            maxWidth: isMobile ? "300px" : "900px", 
++            width: "90%", 
++            maxHeight: isMobile ? "70vh" : "90vh", 
++            backgroundColor: "var(--bg-card)", 
++            borderRadius: "16px", 
++            overflow: "hidden",
++            position: "relative",
++            boxShadow: "0 24px 48px rgba(0,0,0,0.5)"
++          }}>
++            <button onClick={() => { setReceiptPreview(null); setPhotoFullscreen(false); }} style={{ position: "absolute", top: "10px", right: "10px", background: "rgba(0,0,0,0.6)", borderRadius: "50%", border: "none", color: "#fff", cursor: "pointer", padding: "6px", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10 }}>
++              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+             </button>
+-          </div>
+-          <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", maxWidth: (!receiptPreview.receipt_url && !isMobile) ? "400px" : "900px", width: "90%", maxHeight: "90vh", backgroundColor: "var(--bg-card)", borderRadius: "16px", overflow: "hidden", margin: "auto" }}>
+-            {receiptPreview.receipt_url && (
+-              <div style={{ flex: 1, backgroundColor: "#000", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", padding: "24px", maxHeight: isMobile ? "50vh" : "none" }}>
+-                <img src={receiptPreview.receipt_url.startsWith('http') ? receiptPreview.receipt_url : `${import.meta.env.VITE_API_URL}${receiptPreview.receipt_url}`} alt="Receipt" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
++            
++            <div 
++              style={{ flex: 1, backgroundColor: "#000", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", maxHeight: isMobile ? "25vh" : "none", minHeight: isMobile ? "120px" : "auto", cursor: (isMobile && receiptPreview.receipt_url) ? "zoom-in" : "default" }}
++              onClick={() => { if (isMobile && receiptPreview.receipt_url) setPhotoFullscreen(true); }}
++            >
++              {receiptPreview.receipt_url ? (
++                <img src={receiptPreview.receipt_url.startsWith('http') ? receiptPreview.receipt_url : `${import.meta.env.VITE_API_URL}${receiptPreview.receipt_url}`} alt="Receipt" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", padding: isMobile ? "8px" : "0" }} />
++              ) : (
++                <div style={{ color: "var(--text-secondary)", fontSize: "14px" }}>No receipt image</div>
++              )}
++            </div>
++            
++            <div style={{ width: isMobile ? "100%" : "350px", padding: isMobile ? "16px" : "32px", display: "flex", flexDirection: "column", gap: isMobile ? "12px" : "24px", overflowY: "auto" }}>
++              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
++                <h3 style={{ margin: 0, color: "var(--text-primary)", fontSize: isMobile ? "16px" : "20px" }}>Transaction Details</h3>
+               </div>
+-            )}
+-            <div style={{ width: (isMobile || !receiptPreview.receipt_url) ? "100%" : "350px", padding: "32px", display: "flex", flexDirection: "column", gap: "24px", overflowY: "auto" }}>
+-              <h3 style={{ margin: 0, color: "var(--text-primary)", fontSize: "20px" }}>Transaction Details</h3>
+-              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+-                <div>
+-                  <div style={{ fontSize: "12px", color: "var(--text-secondary)", marginBottom: "4px" }}>MERCHANT</div>
+-                  <div style={{ fontSize: "16px", color: "var(--text-primary)", fontWeight: "500" }}>{receiptPreview.merchant || "Unknown"}</div>
+-                </div>
+-                <div>
+-                  <div style={{ fontSize: "12px", color: "var(--text-secondary)", marginBottom: "4px" }}>DATE</div>
+-                  <div style={{ fontSize: "16px", color: "var(--text-primary)", fontWeight: "500" }}>{new Date(receiptPreview.date).toLocaleDateString()}</div>
+-                </div>
+-                <div>
+-                  <div style={{ fontSize: "12px", color: "var(--text-secondary)", marginBottom: "4px" }}>CATEGORY</div>
+-                  <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", backgroundColor: getCategoryStyles(receiptPreview.category).bg, color: getCategoryStyles(receiptPreview.category).color, padding: "4px 10px", borderRadius: "12px", fontSize: "12px", fontWeight: "bold" }}>
+-                    <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: getCategoryStyles(receiptPreview.category).dot }}></span>
+-                    {receiptPreview.category}
++              
++              <div style={{ display: "flex", flexDirection: "column", gap: isMobile ? "10px" : "16px" }}>
++                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
++                  <div style={{ flex: 1 }}>
++                    <div style={{ fontSize: isMobile ? "10px" : "12px", color: "var(--text-secondary)", marginBottom: "2px" }}>MERCHANT</div>
++                    <div style={{ fontSize: isMobile ? "13px" : "16px", color: "var(--text-primary)", fontWeight: "500" }}>{receiptPreview.merchant || "Unknown"}</div>
++                  </div>
++                  <div style={{ flex: 1 }}>
++                    <div style={{ fontSize: isMobile ? "10px" : "12px", color: "var(--text-secondary)", marginBottom: "2px" }}>DATE</div>
++                    <div style={{ fontSize: isMobile ? "13px" : "16px", color: "var(--text-primary)", fontWeight: "500" }}>{new Date(receiptPreview.date).toLocaleDateString()}</div>
+                   </div>
+                 </div>
+-                <div>
+-                  <div style={{ fontSize: "12px", color: "var(--text-secondary)", marginBottom: "4px" }}>AMOUNT</div>
+-                  <div style={{ fontSize: "24px", color: "#00d8f6", fontWeight: "700" }}>₱{parseFloat(receiptPreview.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
++                
++                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
++                  <div style={{ flex: 1 }}>
++                    <div style={{ fontSize: isMobile ? "10px" : "12px", color: "var(--text-secondary)", marginBottom: "2px" }}>CATEGORY</div>
++                    <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", backgroundColor: getCategoryStyles(receiptPreview.category).bg, color: getCategoryStyles(receiptPreview.category).color, padding: isMobile ? "2px 8px" : "4px 10px", borderRadius: "12px", fontSize: isMobile ? "10px" : "12px", fontWeight: "bold" }}>
++                      <span style={{ width: isMobile ? "4px" : "6px", height: isMobile ? "4px" : "6px", borderRadius: "50%", backgroundColor: getCategoryStyles(receiptPreview.category).dot }}></span>
++                      {receiptPreview.category}
++                    </div>
++                  </div>
++                  <div style={{ flex: 1 }}>
++                    <div style={{ fontSize: isMobile ? "10px" : "12px", color: "var(--text-secondary)", marginBottom: "2px" }}>AMOUNT</div>
++                    <div style={{ fontSize: isMobile ? "18px" : "24px", color: "#00d8f6", fontWeight: "700" }}>₱{parseFloat(receiptPreview.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
++                  </div>
+                 </div>
++                
+                 {receiptPreview.description && receiptPreview.description !== receiptPreview.merchant && (
+                   <div>
+-                    <div style={{ fontSize: "12px", color: "var(--text-secondary)", marginBottom: "4px" }}>NOTE</div>
+-                    <div style={{ fontSize: "14px", color: "var(--text-primary)", lineHeight: "1.5" }}>{receiptPreview.description}</div>
++                    <div style={{ fontSize: isMobile ? "10px" : "12px", color: "var(--text-secondary)", marginBottom: "2px" }}>NOTE</div>
++                    <div style={{ fontSize: isMobile ? "12px" : "14px", color: "var(--text-primary)", lineHeight: "1.4" }}>{receiptPreview.description}</div>
+                   </div>
+                 )}
+               </div>
+@@ -2062,6 +2087,27 @@ function TransactionsView({ email, user_id }) {
+           </div>
+         </div>
+       )}
++
++      {/* Fullscreen Photo View */}
++      {receiptPreview && photoFullscreen && (
++        <div 
++          onClick={() => setPhotoFullscreen(false)}
++          style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "#000", zIndex: 3000, display: "flex", alignItems: "center", justifyContent: "center" }}
++        >
++          <button 
++            onClick={(e) => { e.stopPropagation(); setPhotoFullscreen(false); }}
++            style={{ position: "absolute", top: "16px", left: "16px", background: "rgba(255,255,255,0.1)", border: "none", color: "#fff", borderRadius: "50%", padding: "10px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10 }}
++          >
++            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
++          </button>
++          <img
++            src={receiptPreview.receipt_url.startsWith('http') ? receiptPreview.receipt_url : `${import.meta.env.VITE_API_URL}${receiptPreview.receipt_url}`}
++            alt="Receipt"
++            style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }}
++            onClick={(e) => e.stopPropagation()}
++          />
++        </div>
++      )}
+     </div>
+   );
+ }

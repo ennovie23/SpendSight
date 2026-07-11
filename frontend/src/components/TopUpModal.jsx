@@ -57,7 +57,7 @@ export default function TopUpModal({ isOpen, onClose, onTopUpSuccess }) {
       backdropFilter: 'blur(5px)',
       padding: '24px',
       boxSizing: 'border-box',
-      overflowY: 'auto'
+      overflowY: 'auto',
       zIndex: 3000,
     }}>
       <div style={{
