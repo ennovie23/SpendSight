@@ -65,8 +65,9 @@ function DashboardView({ email, user_id }) {
 
   const fetchWalletBalance = async () => {
     try {
+      if (!user_id) return;
       // Sum all linked accounts to get total balance
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/banks/accounts`);
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/banks/accounts?user_id=${user_id}`);
       if (response.ok) {
         const accounts = await response.json();
         const total = accounts.reduce((sum, acc) => sum + parseFloat(acc.balance), 0);
@@ -79,7 +80,7 @@ function DashboardView({ email, user_id }) {
 
   useEffect(() => {
     fetchWalletBalance();
-  }, []);
+  }, [user_id]);
 
   const fetchExpenses = async () => {
     if (!user_id) return;
