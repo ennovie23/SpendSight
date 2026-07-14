@@ -190,7 +190,8 @@ function TransactionsView({ email, user_id }) {
 
   const fetchLinkedAccounts = async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/banks/accounts`);
+      if (!user_id) return;
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/banks/accounts?user_id=${user_id}`);
       if (response.ok) {
         const data = await response.json();
         setLinkedAccounts(data);
