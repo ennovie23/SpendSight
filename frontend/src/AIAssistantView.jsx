@@ -26,8 +26,15 @@ function AIAssistantView() {
   const userId = localStorage.getItem("spendsight_userId");
   const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5001";
 
+  const isInitialMount = useRef(true);
+
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (isInitialMount.current) {
+      messagesEndRef.current?.scrollIntoView({ block: "end" });
+      isInitialMount.current = false;
+    } else {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
   };
 
   useEffect(() => {
