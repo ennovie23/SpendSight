@@ -1,12 +1,20 @@
 const express = require('express');
-const router = express.Router();
-const authController = require('../controllers/auth.controller');
+const {
+  googleLogin,
+  passwordLogin,
+  updatePassword,
+  getStatus,
+  forgotPassword,
+  resetPassword,
+} = require('../controllers/auth.controller');
 
-router.post('/google', authController.googleLogin);
-router.post('/password', authController.passwordLogin);
-router.post('/password/update', authController.updatePassword);
-router.post('/forgot-password', authController.forgotPassword);
-router.post('/reset-password', authController.resetPassword);
-router.get('/status', authController.getStatus);
+const router = express.Router();
+
+router.post('/google', googleLogin);
+router.post('/password', passwordLogin);
+router.post('/password/update', updatePassword);
+router.get('/status', getStatus);
+router.post('/forgot-password', forgotPassword);
+router.post('/reset-password', resetPassword);
 
 module.exports = router;

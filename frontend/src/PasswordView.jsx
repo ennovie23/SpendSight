@@ -94,6 +94,7 @@ export default function PasswordView({ email, onLogout, hasPassword, onPasswordS
           type: "success",
         });
         if (onPasswordSet) onPasswordSet();
+        setResendTimer(0);
         setOldPassword("");
         setNewPassword("");
         setConfirmPassword("");
