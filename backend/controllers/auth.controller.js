@@ -37,15 +37,25 @@ const sendResetEmail = async (email, token, origin) => {
   };
 
   const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.mailtrap.io',
-    port: parseInt(process.env.SMTP_PORT || '2525'),
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: parseInt(process.env.SMTP_PORT || '587'),
+    secure: false, // Use STARTTLS on port 587 (not SSL on 465)
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
     },
+    tls: {
+      rejectUnauthorized: false, // Allow self-signed certs in some environments
+    },
   });
 
-  await transporter.sendMail(mailOptions);
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log('Email sent successfully:', info.messageId, 'to:', email);
+  } catch (emailError) {
+    console.error('Failed to send email via SMTP:', emailError.message);
+    throw emailError; // Re-throw so the caller knows it failed
+  }
 };
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
