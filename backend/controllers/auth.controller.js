@@ -2,7 +2,7 @@ const bcrypt = require('bcrypt');
 const { OAuth2Client } = require('google-auth-library');
 const pool = require('../config/db');
 const crypto = require('crypto');
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 
 const sendResetEmail = async (email, token, origin) => {
   const baseUrl = origin || process.env.FRONTEND_URL || 'http://localhost:5173';
@@ -13,48 +13,43 @@ const sendResetEmail = async (email, token, origin) => {
   console.log(resetUrl);
   console.log('========================================');
 
-  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-    console.log('SMTP credentials missing. Reset link printed to console.');
-    return { loggedToConsole: true };
+  if (!process.env.RESEND_API_KEY) {
+    console.log('RESEND_API_KEY missing. Reset link printed to console only.');
+    return;
   }
 
-  const mailOptions = {
-    from: process.env.SMTP_FROM || '"SpendSight Support" <support@spendsight.com>',
-    to: email,
-    subject: 'SpendSight - Password Reset Request',
-    html: `
-      <div style="font-family: sans-serif; padding: 20px; color: #333;">
-        <h2>SpendSight Password Reset</h2>
-        <p>You requested a password reset for your SpendSight account. Please click the button below to set a new password:</p>
-        <div style="margin: 24px 0;">
-          <a href="${resetUrl}" style="background-color: #00d8f6; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">Reset Password</a>
-        </div>
-        <p>If the button doesn't work, copy and paste this link into your browser:</p>
-        <p><a href="${resetUrl}">${resetUrl}</a></p>
-        <p style="color: #666; font-size: 13px; margin-top: 24px;">This link will expire in 5 minutes. If you didn't request this, you can safely ignore this email.</p>
-      </div>
-    `,
-  };
+  const resend = new Resend(process.env.RESEND_API_KEY);
 
-  const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.SMTP_PORT || '587'),
-    secure: false, // Use STARTTLS on port 587 (not SSL on 465)
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-    tls: {
-      rejectUnauthorized: false, // Allow self-signed certs in some environments
-    },
-  });
+  const fromAddress = process.env.SMTP_FROM || 'SpendSight Support <onboarding@resend.dev>';
 
   try {
-    const info = await transporter.sendMail(mailOptions);
-    console.log('Email sent successfully:', info.messageId, 'to:', email);
+    const { data, error } = await resend.emails.send({
+      from: fromAddress,
+      to: email,
+      subject: 'SpendSight - Password Reset Request',
+      html: `
+        <div style="font-family: sans-serif; padding: 20px; color: #333;">
+          <h2>SpendSight Password Reset</h2>
+          <p>You requested a password reset for your SpendSight account. Please click the button below to set a new password:</p>
+          <div style="margin: 24px 0;">
+            <a href="${resetUrl}" style="background-color: #00d8f6; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">Reset Password</a>
+          </div>
+          <p>If the button doesn't work, copy and paste this link into your browser:</p>
+          <p><a href="${resetUrl}">${resetUrl}</a></p>
+          <p style="color: #666; font-size: 13px; margin-top: 24px;">This link will expire in 5 minutes. If you didn't request this, you can safely ignore this email.</p>
+        </div>
+      `,
+    });
+
+    if (error) {
+      console.error('Resend API error:', error);
+      throw new Error(error.message);
+    }
+
+    console.log('Email sent successfully via Resend. ID:', data.id, 'to:', email);
   } catch (emailError) {
-    console.error('Failed to send email via SMTP:', emailError.message);
-    throw emailError; // Re-throw so the caller knows it failed
+    console.error('Failed to send email:', emailError.message);
+    throw emailError;
   }
 };
 
