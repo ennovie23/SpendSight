@@ -1,6 +1,52 @@
 const bcrypt = require('bcrypt');
 const { OAuth2Client } = require('google-auth-library');
 const pool = require('../config/db');
+const crypto = require('crypto');
+const nodemailer = require('nodemailer');
+
+const sendResetEmail = async (email, token, origin) => {
+  const baseUrl = origin || process.env.FRONTEND_URL || 'http://localhost:5173';
+  const resetUrl = `${baseUrl}/?action=reset-password&token=${token}&email=${encodeURIComponent(email)}`;
+  
+  console.log('========================================');
+  console.log(`PASSWORD RESET LINK FOR ${email}:`);
+  console.log(resetUrl);
+  console.log('========================================');
+
+  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    console.log('SMTP credentials missing. Reset link printed to console.');
+    return { loggedToConsole: true };
+  }
+
+  const mailOptions = {
+    from: process.env.SMTP_FROM || '"SpendSight Support" <support@spendsight.com>',
+    to: email,
+    subject: 'SpendSight - Password Reset Request',
+    html: `
+      <div style="font-family: sans-serif; padding: 20px; color: #333;">
+        <h2>SpendSight Password Reset</h2>
+        <p>You requested a password reset for your SpendSight account. Please click the button below to set a new password:</p>
+        <div style="margin: 24px 0;">
+          <a href="${resetUrl}" style="background-color: #00d8f6; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">Reset Password</a>
+        </div>
+        <p>If the button doesn't work, copy and paste this link into your browser:</p>
+        <p><a href="${resetUrl}">${resetUrl}</a></p>
+        <p style="color: #666; font-size: 13px; margin-top: 24px;">This link will expire in 5 minutes. If you didn't request this, you can safely ignore this email.</p>
+      </div>
+    `,
+  };
+
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST || 'smtp.mailtrap.io',
+    port: parseInt(process.env.SMTP_PORT || '2525'),
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+  });
+
+  await transporter.sendMail(mailOptions);
+};
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -172,5 +218,76 @@ exports.getStatus = async (req, res) => {
   } catch (error) {
     console.error('Error fetching user status:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+exports.forgotPassword = async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ error: 'Email is required' });
+  }
+
+  try {
+    const userCheck = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    if (userCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'No user registered with this email address' });
+    }
+
+    const user = userCheck.rows[0];
+    if (user.reset_token_expires) {
+      const remainingTime = new Date(user.reset_token_expires).getTime() - Date.now();
+      // If remaining time is more than 4 minutes but less than/equal to 5 minutes, it was requested < 1 minute ago.
+      // If it is more than 5 minutes, it is a legacy token, so we bypass the rate limit.
+      if (remainingTime > 240000 && remainingTime <= 300000) {
+        const waitSec = Math.ceil((remainingTime - 240000) / 1000);
+        return res.status(429).json({ error: `Please wait ${waitSec} seconds before requesting another reset link.` });
+      }
+    }
+
+    const token = crypto.randomBytes(20).toString('hex');
+    const expires = new Date(Date.now() + 300000); // 5 minutes from now
+
+    await pool.query(
+      'UPDATE users SET reset_token = $1, reset_token_expires = $2 WHERE email = $3',
+      [token, expires, email]
+    );
+
+    await sendResetEmail(email, token, req.headers.origin);
+
+    res.status(200).json({ message: 'Password reset link sent to your email.' });
+  } catch (error) {
+    console.error('Error during forgot password:', error);
+    res.status(500).json({ error: 'Internal server error during forgot password' });
+  }
+};
+
+exports.resetPassword = async (req, res) => {
+  const { email, token, newPassword } = req.body;
+  if (!email || !token || !newPassword) {
+    return res.status(400).json({ error: 'Email, token, and new password are required' });
+  }
+
+  try {
+    const userCheck = await pool.query(
+      'SELECT * FROM users WHERE email = $1 AND reset_token = $2 AND reset_token_expires > NOW()',
+      [email, token]
+    );
+
+    if (userCheck.rows.length === 0) {
+      return res.status(400).json({ error: 'Password reset token is invalid or has expired' });
+    }
+
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+
+    await pool.query(
+      'UPDATE users SET password_hash = $1, reset_token = NULL, reset_token_expires = NULL WHERE email = $2',
+      [hashedPassword, email]
+    );
+
+    res.status(200).json({ message: 'Password has been reset successfully' });
+  } catch (error) {
+    console.error('Error during password reset:', error);
+    res.status(500).json({ error: 'Internal server error during password reset' });
   }
 };

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export default function PasswordView({ email, onLogout, hasPassword, onPasswordSet }) {
   const [oldPassword, setOldPassword] = useState("");
@@ -6,6 +6,50 @@ export default function PasswordView({ email, onLogout, hasPassword, onPasswordS
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isBtnHovered, setIsBtnHovered] = useState(false);
   const [message, setMessage] = useState({ text: "", type: "" }); // type: "success" or "error"
+  const [resendTimer, setResendTimer] = useState(0);
+
+  useEffect(() => {
+    if (resendTimer > 0) {
+      const interval = setInterval(() => {
+        setResendTimer((prev) => prev - 1);
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [resendTimer]);
+
+  const handleForgotSettings = async (e) => {
+    e.preventDefault();
+    setMessage({ text: "", type: "" });
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/forgot-password`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        setMessage({
+          text: data.message || "A password reset link has been sent to your email.",
+          type: "success",
+        });
+        setResendTimer(60);
+      } else {
+        setMessage({ text: data.error || "Failed to send reset link.", type: "error" });
+        if (response.status === 429) {
+          const match = data.error.match(/wait (\d+) seconds/);
+          if (match) {
+            setResendTimer(parseInt(match[1]));
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Network error requesting password reset:", err);
+      setMessage({ text: "Network error occurred. Please try again.", type: "error" });
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -104,10 +148,32 @@ export default function PasswordView({ email, onLogout, hasPassword, onPasswordS
         )}
 
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-          {/* Old Password Field (Only if they already have one) */}
           {hasPassword && (
             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              <label style={{ color: "var(--text-secondary)", fontSize: "14px", fontWeight: "500" }}>Old Password</label>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <label style={{ color: "var(--text-secondary)", fontSize: "14px", fontWeight: "500" }}>Old Password</label>
+                {resendTimer > 0 ? (
+                  <span style={{ color: "var(--text-secondary)", fontSize: "13px", fontWeight: "500" }}>
+                    Resend link in {resendTimer}s
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleForgotSettings}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "#00d8f6",
+                      fontSize: "13px",
+                      cursor: "pointer",
+                      padding: 0,
+                      fontWeight: "500",
+                    }}
+                  >
+                    Forgot password?
+                  </button>
+                )}
+              </div>
               <div style={{ position: "relative" }}>
                 <span style={{ position: "absolute", left: "16px", top: "12px", display: "flex", alignItems: "center" }}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--text-secondary)" }}>
